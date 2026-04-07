@@ -1,16 +1,17 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { emitTo } from '@tauri-apps/api/event';
 import { SearchBar } from "./components/SearchBar";
-import { PluginList } from "./components/PluginList";
-import { PluginUI } from "./components/PluginUI";
+import { SearchResultList } from "./components/SearchResultList";
 import { usePlugins } from "./hooks/usePlugins";
-import { Plugin } from "./types/plugin";
-import { Spinner } from "@heroui/react";
+import { useApplications } from "./hooks/useApplications";
+import { SearchResult, createPluginResult } from "./types/searchResult";
+import { matchesPinyinSearch } from "./utils/pinyinSearch";
 
 function App() {
   const [query, setQuery] = useState("");
-  const [selectedPlugin, setSelectedPlugin] = useState<Plugin | null>(null);
-  const { plugins, loading, executePlugin } = usePlugins();
+  const { plugins } = usePlugins();
+  const { applications } = useApplications();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -23,97 +24,79 @@ function App() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // 当查询变化时，执行当前选中的插件（如果有）
-  useEffect(() => {
-    if (selectedPlugin && query) {
-      const execute = async () => {
-        try {
-          await executePlugin(selectedPlugin.id, query);
-        } catch (error) {
-          console.error('Error executing plugin:', error);
-        }
-      };
-      
-      // 防抖，延迟 300ms 执行
-      const timer = setTimeout(execute, 300);
-      return () => clearTimeout(timer);
-    }
-  }, [query, selectedPlugin, executePlugin]);
-
-  const handleExecute = async (id: string, query: string) => {
-    console.log('handleExecute called:', { id, query });
-
-    const plugin = plugins.find(p => p.id === id);
-    if (!plugin) {
-      console.error('Plugin not found:', id);
-      return;
-    }
-
-    // 如果是 HTML 插件，直接打开 PluginUI
-    if (plugin.entry_type === 'html') {
-      setSelectedPlugin(plugin);
-    } else if (plugin.entry_type === 'esm' || plugin.entry_type === 'js') {
-      // ESM 和 JS 插件：先执行以获取 customUI
-      try {
-        const results = await executePlugin(id, query);
-        if (results && results.length > 0 && results[0].customUI) {
-          // 将 customUI 附加到 plugin 对象
-          const pluginWithUI = { ...plugin, customUI: results[0].customUI };
-          setSelectedPlugin(pluginWithUI as any);
-        } else {
-          // 如果没有 customUI，仍然打开 PluginUI（可能插件有自己的处理方式）
-          setSelectedPlugin(plugin);
-        }
-      } catch (error) {
-        console.error('Error executing plugin:', error);
+  // 合并搜索结果
+  const searchResults = useMemo(() => {
+    const results: SearchResult[] = [];
+    
+    // 添加插件结果
+    plugins.forEach(plugin => {
+      if (matchesPinyinSearch(plugin.name, query) ||
+          plugin.keywords.some(keyword => matchesPinyinSearch(keyword, query))) {
+        results.push(
+          createPluginResult(
+            plugin.id,
+            plugin.name,
+            query,
+            {
+              description: plugin.description,
+              icon: plugin.icon,
+            }
+          )
+        );
       }
-    } else {
-      // 其他插件：执行
+    });
+    
+    // 添加应用程序结果
+    applications.forEach(app => {
+      if (matchesPinyinSearch(app.title, query) ||
+          (app.description && matchesPinyinSearch(app.description, query))) {
+        results.push(app);
+      }
+    });
+    
+    return results;
+  }, [query, plugins, applications]);
+
+  const handleExecute = async (result: SearchResult) => {
+    console.log('[Main Window] Executing result:', result);
+
+    if (result.type === 'plugin') {
+      // 执行插件
       try {
-        await executePlugin(id, query);
+        console.log('[Main Window] Opening plugin:', result.pluginId);
+        await emitTo('plugin', 'load-plugin', {
+          id: result.pluginId,
+          name: result.title,
+          entry_type: 'esm',
+          entry: 'dist/index.js',
+        });
+        await invoke('hide_window');
       } catch (error) {
-        console.error('Error executing plugin:', error);
+        console.error('[Main Window] Error opening plugin:', error);
+      }
+    } else if (result.type === 'application') {
+      // 启动应用程序
+      try {
+        console.log('[Main Window] Launching application:', result.executable);
+        await invoke('launch_application', { path: result.path });
+        await invoke('hide_window');
+      } catch (error) {
+        console.error('[Main Window] Error launching application:', error);
       }
     }
-  };
-
-  const handleClosePlugin = () => {
-    setSelectedPlugin(null);
-    setQuery('');
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-6">
-      <div className="max-w-6xl mx-auto space-y-6">
-        {/* 标题 */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">
-            Quick Actions
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 text-sm">
-            快速启动您的插件工具
-          </p>
-        </div>
-
-        {/* 搜索栏 */}
+    <div className="min-h-screen bg-white dark:bg-gray-900">
+      {/* 顶部搜索栏 - 与窗体融为一体 */}
+      <div className="sticky top-0 z-10 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800">
         <SearchBar value={query} onChange={setQuery} />
+      </div>
 
-        {/* 加载状态 */}
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-4">
-            <Spinner size="lg" color="success" />
-            <p className="text-gray-600 dark:text-gray-400 text-sm">正在加载插件...</p>
-          </div>
-        ) : selectedPlugin ? (
-          /* 插件 UI 界面 */
-          <PluginUI 
-            plugin={selectedPlugin} 
-            onClose={handleClosePlugin}
-          />
-        ) : (
-          /* 插件列表 */
-          <PluginList plugins={plugins} onExecute={handleExecute} query={query} />
-        )}
+      {/* 内容区域 */}
+      <div className="p-2">
+        {/* 搜索结果列表 */}
+        <SearchResultList results={searchResults} onExecute={handleExecute} />
       </div>
     </div>
   );

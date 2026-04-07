@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { Input } from '@heroui/react';
-import { Search } from 'lucide-react';
 
 interface SearchBarProps {
   value: string;
@@ -21,19 +20,15 @@ export function SearchBar({ value, onChange, onExecute }: SearchBarProps) {
   }, [onExecute]);
 
   return (
-    <div className="relative w-full">
+    <div className="w-full">
       <Input
         autoFocus
         type="text"
         placeholder="搜索插件..."
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        variant="secondary"
-        className="w-full [&_.input-wrapper]:h-14 [&_.input-wrapper]:shadow-md [&_.input-wrapper]:hover:shadow-lg [&_.input-wrapper]:bg-white [&_.dark_.input-wrapper]:bg-gray-800 [&_.input-wrapper]:border-2 [&_.dark_.input-wrapper]:border-gray-700 [&_.input-wrapper]:border-gray-200 [&_.input]:text-lg [&_.input]:pl-12"
+        className="w-full [&_.input-wrapper]:h-12 [&_.input-wrapper]:bg-transparent [&_.input-wrapper]:hover:bg-gray-100 [&_.dark_.input-wrapper]:hover:bg-gray-800 [&_.input-wrapper]:transition-colors [&_.input-wrapper]:border-none [&_.input-wrapper]:shadow-none [&_.input-wrapper]:rounded-none [&_.input]:text-base [&_.input]:placeholder:text-gray-400 [&_.input-wrapper]:px-3"
       />
-      <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">
-        <Search className="w-5 h-5 text-gray-400" />
-      </div>
     </div>
   );
 }

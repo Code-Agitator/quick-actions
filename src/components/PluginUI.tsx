@@ -89,6 +89,10 @@ export function PluginUI({ plugin, onClose }: PluginUIProps) {
   useEffect(() => {
     if (pluginModule && containerRef.current) {
       try {
+        console.log('[PluginUI] pluginModule type:', typeof pluginModule);
+        console.log('[PluginUI] pluginModule keys:', Object.keys(pluginModule || {}));
+        console.log('[PluginUI] Has render?:', typeof (pluginModule as any).render);
+        
         // 创建安全的 ACTIONS API 对象
         const actionsAPI = createActionsAPI(plugin.id);
         
@@ -97,9 +101,17 @@ export function PluginUI({ plugin, onClose }: PluginUIProps) {
           (window as any).ACTIONS = actionsAPI;
         }
         
-        const result = pluginModule.render({ 
+        // 检查是否有 render 方法
+        if (typeof (pluginModule as any).render !== 'function') {
+          console.error('[PluginUI] pluginModule does not have render method');
+          console.error('[PluginUI] pluginModule:', pluginModule);
+          setError('插件模块格式不正确：缺少 render 方法');
+          return;
+        }
+        
+        const result = (pluginModule as any).render({ 
           query: '', 
-          onResult: (result) => console.log('Plugin result:', result)
+          onResult: (result: any) => console.log('Plugin result:', result)
         });
         
         // 如果是 React 元素，跳过（在 JSX 中处理）

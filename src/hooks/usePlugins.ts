@@ -59,7 +59,7 @@ export function usePlugins() {
         if (typeof pluginModule.render === 'function') {
           return {
             ...plugin,
-            execute: async (query: string) => {
+            execute: async (_query: string) => {
               // 返回带有 customUI 的结果
               return [{
                 title: plugin.name,

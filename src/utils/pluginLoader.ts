@@ -51,7 +51,7 @@ export async function loadPluginFromManifest(manifest: PluginManifest): Promise<
 
       // 如果插件提供了 render 方法，说明是 UI 插件
       if (typeof pluginModule.render === 'function') {
-        execute = async (query: string) => {
+        execute = async (_query: string) => {
           return [{
             title: manifest.name,
             description: manifest.description,

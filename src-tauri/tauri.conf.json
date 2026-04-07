@@ -12,6 +12,7 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Quick Actions",
         "width": 600,
         "height": 400,
@@ -20,7 +21,21 @@
         "alwaysOnTop": true,
         "skipTaskbar": true,
         "visible": false,
-        "focus": true
+        "focus": true,
+        "url": "index.html"
+      },
+      {
+        "label": "plugin",
+        "title": "Plugin UI",
+        "width": 1200,
+        "height": 800,
+        "center": true,
+        "decorations": false,
+        "alwaysOnTop": false,
+        "skipTaskbar": false,
+        "visible": false,
+        "focus": true,
+        "url": "index.html?window=plugin"
       }
     ],
     "security": {
