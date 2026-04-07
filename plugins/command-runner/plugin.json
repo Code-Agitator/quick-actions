@@ -1,0 +1,11 @@
+{
+  "id": "command-runner",
+  "name": "命令执行器",
+  "version": "1.0.0",
+  "description": "执行系统命令",
+  "icon": "⚡",
+  "keywords": ["cmd", "命令", "run", "执行", ">"],
+  "entry": "index.js",
+  "entry_type": "js",
+  "permissions": ["shell:execute"]
+}

@@ -1,0 +1,10 @@
+{
+  "id": "file-browser",
+  "name": "文件浏览器",
+  "version": "2.0.0",
+  "description": "功能完整的文件浏览器，支持浏览、搜索和文件操作",
+  "icon": "📁",
+  "keywords": ["file", "文件", "browse", "浏览", "dir", "目录", "folder", "文件夹"],
+  "entry": "index.js",
+  "permissions": ["fs:read", "fs:list"]
+}

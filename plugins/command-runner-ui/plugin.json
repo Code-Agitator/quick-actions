@@ -1,0 +1,19 @@
+{
+  "id": "command-runner-ui",
+  "name": "命令执行器 (UI版)",
+  "version": "2.0.0",
+  "description": "功能完整的命令执行器，带历史记录和快速命令",
+  "author": "Quick Actions Team",
+  "entry": "dist/index.js",
+  "entry_type": "esm",
+  "icon": "⚡",
+  "keywords": [
+    "command-runner-ui",
+    "react",
+    "plugin",
+    "cmd",
+    "命令",
+    "run",
+    "执行"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "id": "calculator-simple",
+  "name": "计算器 (简易版)",
+  "version": "3.0.0",
+  "description": "简化版计算器，使用基础 CSS 确保按钮显示",
+  "icon": "🧮",
+  "keywords": ["calc", "计算", "数学", "+", "-", "*", "/"],
+  "entry": "simple.js"
+}
