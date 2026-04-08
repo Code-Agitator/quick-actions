@@ -1,7 +1,7 @@
 use crate::plugin_manager::{PluginManager, PluginMetadata, PluginResult};
 use std::sync::Mutex;
 use std::path::PathBuf;
-use tauri::{State, WebviewWindow, Emitter};
+use tauri::{State, WebviewWindow, Emitter, Manager, WebviewWindowBuilder};
 use pinyin::ToPinyin;
 
 pub struct AppState {
@@ -103,16 +103,219 @@ pub fn uninstall_plugin(id: String, state: State<AppState>) -> Result<(), String
     manager.uninstall_plugin(&id)
 }
 
+/// 动态创建并显示插件窗口
+#[tauri::command]
+pub fn open_plugin_window(
+    plugin_id: String,
+    plugin_name: String,
+    entry: String,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    let window_label = format!("plugin-{}", plugin_id);
+    
+    eprintln!("[Rust] open_plugin_window called");
+    eprintln!("[Rust] plugin_id: {}", plugin_id);
+    eprintln!("[Rust] plugin_name: {}", plugin_name);
+    eprintln!("[Rust] entry: {}", entry);
+    eprintln!("[Rust] window_label: {}", window_label);
+    
+    // 如果窗口已存在，先关闭它
+    if let Some(existing_window) = app.get_webview_window(&window_label) {
+        eprintln!("[Rust] Window {} already exists, closing...", window_label);
+        let _ = existing_window.close();
+        // 等待窗口关闭
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    
+    // 根据开发模式决定使用什么 URL
+    #[cfg(debug_assertions)]
+    {
+        // 开发模式：使用 WebviewUrl::App 让 Tauri 自动处理 dev server URL
+        let url = tauri::WebviewUrl::App(format!("/index.html?window=plugin&id={}&entry={}", plugin_id, entry).into());
+        
+        eprintln!("[Rust] Dev mode detected, using WebviewUrl::App");
+        eprintln!("[Rust] Creating window...");
+        let new_window = WebviewWindowBuilder::new(&app, &window_label, url)
+            .title(&plugin_name)
+            .inner_size(1200.0, 800.0)
+            .center()
+            .decorations(false)
+            .transparent(false)
+            .always_on_top(false)
+            .skip_taskbar(false)
+            .visible(true)
+            .build()
+            .map_err(|e| {
+                eprintln!("[Rust] Failed to create window: {}", e);
+                format!("Failed to create window: {}", e)
+            })?;
+        
+        eprintln!("[Rust] Window created successfully");
+        eprintln!("[Rust] Window URL: {:?}", new_window.url());
+        
+        // 确保窗口获得焦点
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        match new_window.set_focus() {
+            Ok(_) => eprintln!("[Rust] Window focus set successfully"),
+            Err(e) => eprintln!("[Rust] Failed to set window focus: {}", e),
+        }
+        
+        // 同时隐藏主窗口
+        if let Some(main_window) = app.get_webview_window("main") {
+            eprintln!("[Rust] Hiding main window");
+            let _ = main_window.hide();
+        }
+        
+        eprintln!("[Rust] open_plugin_window completed successfully");
+        return Ok(());
+    }
+    
+    // 生产模式使用 tauri:// 协议
+    #[cfg(not(debug_assertions))]
+    {
+        let url_str = format!("tauri://localhost/index.html?window=plugin&id={}&entry={}", plugin_id, entry);
+        
+        eprintln!("[Rust] Prod mode detected, using tauri:// protocol");
+        eprintln!("[Rust] URL string: {}", url_str);
+        
+        let parsed_url = tauri::Url::parse(&url_str).map_err(|e| format!("Failed to parse URL: {}", e))?;
+        eprintln!("[Rust] Parsed URL - scheme: {}, host: {:?}, path: {}, query: {:?}", 
+            parsed_url.scheme(),
+            parsed_url.host(),
+            parsed_url.path(),
+            parsed_url.query()
+        );
+        
+        let url = tauri::WebviewUrl::External(parsed_url);
+        
+        eprintln!("[Rust] WebviewUrl type: External");
+        
+        eprintln!("[Rust] Creating window...");
+        let new_window = WebviewWindowBuilder::new(&app, &window_label, url)
+            .title(&plugin_name)
+            .inner_size(1200.0, 800.0)
+            .center()
+            .decorations(false)
+            .transparent(false)
+            .always_on_top(false)
+            .skip_taskbar(false)
+            .visible(true)
+            .build()
+            .map_err(|e| {
+                eprintln!("[Rust] Failed to create window: {}", e);
+                format!("Failed to create window: {}", e)
+            })?;
+        
+        eprintln!("[Rust] Window created successfully");
+        eprintln!("[Rust] Window URL: {:?}", new_window.url());
+        
+        // 确保窗口获得焦点
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        match new_window.set_focus() {
+            Ok(_) => eprintln!("[Rust] Window focus set successfully"),
+            Err(e) => eprintln!("[Rust] Failed to set window focus: {}", e),
+        }
+        
+        // 同时隐藏主窗口
+        if let Some(main_window) = app.get_webview_window("main") {
+            eprintln!("[Rust] Hiding main window");
+            let _ = main_window.hide();
+        }
+        
+        eprintln!("[Rust] open_plugin_window completed successfully");
+        return Ok(());
+    }
+}
+
+/// 关闭指定插件窗口
+#[tauri::command]
+pub fn close_plugin_window(
+    plugin_id: String,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    let window_label = format!("plugin-{}", plugin_id);
+    
+    if let Some(window) = app.get_webview_window(&window_label) {
+        window.close().map_err(|e| e.to_string())?;
+    }
+    
+    Ok(())
+}
+
+/// 关闭所有插件窗口
+#[tauri::command]
+pub fn close_all_plugin_windows(
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    let windows = app.webview_windows();
+    
+    for (label, window) in windows.iter() {
+        if label.starts_with("plugin-") {
+            let _ = window.close();
+        }
+    }
+    
+    Ok(())
+}
+
 #[tauri::command]
 pub fn show_window(window: WebviewWindow) -> Result<(), String> {
+    // Windows 平台：移除系统菜单，防止 Alt+Space 弹出
+    #[cfg(windows)]
+    {
+        use windows::Win32::UI::WindowsAndMessaging::{
+            GetWindowLongW, SetWindowLongW, GWL_STYLE, WS_SYSMENU
+        };
+        use windows::Win32::Foundation::HWND;
+        
+        // 获取窗口句柄
+        if let Ok(hwnd) = window.hwnd() {
+            // hwnd.0 是 *mut c_void，转换为 isize
+            let hwnd_value = hwnd.0 as isize;
+            unsafe {
+                // 获取当前窗口样式
+                let current_style = GetWindowLongW(HWND(hwnd_value), GWL_STYLE);
+                // 移除 WS_SYSMENU 样式（系统菜单）
+                let new_style = current_style & !WS_SYSMENU.0 as i32;
+                SetWindowLongW(HWND(hwnd_value), GWL_STYLE, new_style);
+            }
+        }
+    }
+    
+    // 先显示窗口
     window.show().map_err(|e| e.to_string())?;
+    
+    // 设置为最前窗口
+    window.set_always_on_top(true).map_err(|e| e.to_string())?;
+    
+    // 短暂延迟后设置焦点，确保窗口已完全显示
+    std::thread::sleep(std::time::Duration::from_millis(30));
+    
+    // 确保窗口获得焦点
     window.set_focus().map_err(|e| e.to_string())?;
+    
+    // 再延迟一次，确保焦点设置成功
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    window.set_focus().ok(); // 忽略错误，作为重试
+    
     Ok(())
 }
 
 #[tauri::command]
 pub fn hide_window(window: WebviewWindow) -> Result<(), String> {
-    window.hide().map_err(|e| e.to_string())
+    eprintln!("[Rust] hide_window called on label: {:?}", window.label());
+    eprintln!("[Rust] Is window visible? {:?}", window.is_visible());
+    let result = window.hide();
+    match result {
+        Ok(_) => {
+            eprintln!("[Rust] hide_window succeeded");
+            Ok(())
+        }
+        Err(e) => {
+            eprintln!("[Rust] hide_window failed: {}", e);
+            Err(e.to_string())
+        }
+    }
 }
 
 #[tauri::command]
@@ -120,6 +323,13 @@ pub fn toggle_window(window: WebviewWindow) -> Result<(), String> {
     if window.is_visible().unwrap_or(false) {
         hide_window(window)
     } else {
+        // 显示主窗口前，先隐藏所有插件窗口
+        let windows = window.app_handle().webview_windows();
+        for (label, win) in windows.iter() {
+            if label.starts_with("plugin-") {
+                let _ = win.hide();
+            }
+        }
         show_window(window)
     }
 }
@@ -169,7 +379,7 @@ pub struct FileEntry {
 /// 列出目录内容
 #[tauri::command]
 pub fn plugin_list_dir(
-    plugin_id: String,
+    _plugin_id: String,
     path: String,
     _state: State<AppState>,
 ) -> Result<Vec<FileEntry>, String> {
@@ -239,14 +449,12 @@ pub fn plugin_list_dir(
 /// 搜索文件
 #[tauri::command]
 pub fn plugin_search_files(
-    plugin_id: String,
+    _plugin_id: String,
     path: String,
     query: String,
     max_results: Option<usize>,
     _state: State<AppState>,
 ) -> Result<Vec<FileEntry>, String> {
-    use std::fs;
-    
     if !is_safe_path(&path) {
         return Err("Access denied: Path outside allowed directories".to_string());
     }
@@ -483,4 +691,67 @@ pub fn launch_application(path: String) -> Result<(), String> {
     }
     
     Ok(())
+}
+
+/// Everything 搜索结果项
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+pub struct EverythingResult {
+    pub name: String,
+    pub path: String,
+    pub size: u64,
+    pub date_modified: String,
+}
+
+/// Everything 搜索响应
+#[derive(serde::Serialize, serde::Deserialize, Debug)]
+pub struct EverythingResponse {
+    pub results: Vec<EverythingResult>,
+}
+
+/// 通过 Everything HTTP API 搜索文件
+#[tauri::command]
+pub fn everything_search(query: String, host: Option<String>) -> Result<EverythingResponse, String> {
+    let host = host.unwrap_or_else(|| "http://localhost".to_string());
+    
+    // 构建请求 URL
+    let url = format!(
+        "{}/?json=1&path_column=1&size_column=1&date_modified_column=1&count=100&search={}",
+        host,
+        urlencoding::encode(&query)
+    );
+    
+    // 发送 HTTP 请求
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+    
+    let response = client.get(&url)
+        .send()
+        .map_err(|e| format!("Failed to send request: {}", e))?;
+    
+    if !response.status().is_success() {
+        return Err(format!("HTTP error: {}", response.status()));
+    }
+    
+    // 解析 JSON 响应
+    let json_value: serde_json::Value = response.json()
+        .map_err(|e| format!("Failed to parse JSON: {}", e))?;
+    
+    // 提取 results 数组
+    let results_array = json_value.get("results")
+        .and_then(|v| v.as_array())
+        .ok_or_else(|| "Invalid response format: missing results array".to_string())?;
+    
+    // 转换为结构化数据
+    let results: Vec<EverythingResult> = results_array.iter()
+        .map(|item| EverythingResult {
+            name: item.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            path: item.get("path").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+            size: item.get("size").and_then(|v| v.as_u64()).unwrap_or(0),
+            date_modified: item.get("date-modified").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+        })
+        .collect();
+    
+    Ok(EverythingResponse { results })
 }

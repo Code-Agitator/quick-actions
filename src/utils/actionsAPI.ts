@@ -100,6 +100,58 @@ interface ConfigAPI {
  */
 interface UtilsAPI {
   /**
+   * 格式化文件大小
+   * @param bytes 字节数
+   */
+  formatFileSize: (bytes: number) => string;
+  
+  /**
+   * 格式化日期
+   * @param date 日期对象或时间戳
+   * @param format 格式字符串（可选）
+   */
+  formatDate: (date: Date | number, format?: string) => string;
+}
+
+/**
+ * HTTP API
+ */
+interface HTTPAPI {
+  /**
+   * 发送 GET 请求
+   * @param url 请求 URL
+   * @param options 请求选项
+   */
+  get: (url: string, options?: HTTPRequestOptions) => Promise<HTTPResponse>;
+  
+  /**
+   * 发送 POST 请求
+   * @param url 请求 URL
+   * @param data 请求数据
+   * @param options 请求选项
+   */
+  post: (url: string, data?: any, options?: HTTPRequestOptions) => Promise<HTTPResponse>;
+}
+
+/**
+ * HTTP 请求选项
+ */
+interface HTTPRequestOptions {
+  headers?: Record<string, string>;
+  timeout?: number;
+}
+
+/**
+ * HTTP 响应
+ */
+interface HTTPResponse {
+  status: number;
+  statusText: string;
+  data: any;
+  headers: Record<string, string>;
+}
+interface UtilsAPI {
+  /**
    * 格式化日期
    * @param date 日期对象或时间戳
    * @param format 格式字符串（可选）
@@ -198,6 +250,11 @@ export interface ActionsAPI {
    * Shell 命令执行（受限）
    */
   shell: ShellAPI;
+  
+  /**
+   * HTTP 请求
+   */
+  http: HTTPAPI;
   
   /**
    * 配置管理
@@ -317,6 +374,42 @@ export function createActionsAPI(pluginId: string): ActionsAPI {
       }
     },
     
+    http: {
+      get: async (url: string, options?: HTTPRequestOptions) => {
+        try {
+          const result = await invoke<any>('plugin_http_request', {
+            pluginId,
+            method: 'GET',
+            url,
+            headers: options?.headers,
+            body: null,
+            timeout: options?.timeout
+          });
+          return result as HTTPResponse;
+        } catch (error) {
+          console.error('[ACTIONS] HTTP GET failed:', error);
+          throw error;
+        }
+      },
+      
+      post: async (url: string, data?: any, options?: HTTPRequestOptions) => {
+        try {
+          const result = await invoke<any>('plugin_http_request', {
+            pluginId,
+            method: 'POST',
+            url,
+            headers: options?.headers,
+            body: data ? JSON.stringify(data) : null,
+            timeout: options?.timeout
+          });
+          return result as HTTPResponse;
+        } catch (error) {
+          console.error('[ACTIONS] HTTP POST failed:', error);
+          throw error;
+        }
+      }
+    },
+    
     config: {
       set: async (key: string, value: any) => {
         try {
@@ -357,6 +450,14 @@ export function createActionsAPI(pluginId: string): ActionsAPI {
     },
     
     utils: {
+      formatFileSize: (bytes: number) => {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+      },
+      
       formatDate: (date: Date | number, format?: string) => {
         const d = typeof date === 'number' ? new Date(date) : date;
         

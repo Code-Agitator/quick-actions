@@ -5,8 +5,18 @@ mod plugin_api;
 use commands::AppState;
 use plugin_manager::PluginManager;
 use std::sync::{Arc, Mutex};
-use tauri::Manager;
+use tauri::{Manager, Emitter, menu::{Menu, MenuItem, PredefinedMenuItem}, tray::{TrayIconBuilder, MouseButton, MouseButtonState}};
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
+
+fn toggle_main_window(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = commands::toggle_window(window);
+    }
+}
+
+fn quit_app(app: &tauri::AppHandle) {
+    let _ = app.exit(0);
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -20,6 +30,52 @@ pub fn run() {
             app.manage(AppState {
                 plugin_manager: Mutex::new(plugin_manager),
             });
+
+            // 创建托盘图标
+            let _ = TrayIconBuilder::new()
+                .icon(app.default_window_icon().unwrap().clone())
+                .tooltip("Quick Actions")
+                .on_tray_icon_event(|tray, event| {
+                    if let tauri::tray::TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event {
+                        toggle_main_window(tray.app_handle());
+                    }
+                })
+                .menu(&Menu::with_items(app.handle(), &[
+                    &MenuItem::with_id::<_, _, _, _>(app.handle(), "toggle", "呼出/隐藏", true, None::<&str>)?,
+                    &PredefinedMenuItem::separator(app.handle())?,
+                    &PredefinedMenuItem::quit(app.handle(), None)?,
+                ])?)
+                .build(app.handle())?;
+
+            // Windows 平台：在主窗口创建后立即移除系统菜单
+            #[cfg(windows)]
+            {
+                use windows::Win32::UI::WindowsAndMessaging::{
+                    GetWindowLongW, SetWindowLongW, GWL_STYLE, WS_SYSMENU
+                };
+                use windows::Win32::Foundation::HWND;
+                
+                if let Some(window) = app.get_webview_window("main") {
+                    if let Ok(hwnd) = window.hwnd() {
+                        let hwnd_value = hwnd.0 as isize;
+                        unsafe {
+                            let current_style = GetWindowLongW(HWND(hwnd_value), GWL_STYLE);
+                            let new_style = current_style & !WS_SYSMENU.0 as i32;
+                            SetWindowLongW(HWND(hwnd_value), GWL_STYLE, new_style);
+                            println!("[Tauri] System menu removed from main window");
+                        }
+                    }
+                }
+            }
+
+            // 启动时立即隐藏主窗口，等待首次呼出
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.hide();
+            }
 
             let handle = app.handle().clone();
             let last_toggle = Arc::new(Mutex::new(std::time::Instant::now()));
@@ -44,14 +100,9 @@ pub fn run() {
                 eprintln!("You can still use the app, but the global shortcut won't work.");
             }
 
-            if let Some(window) = app.get_webview_window("main") {
-                let window_clone = window.clone();
-                window.on_window_event(move |event| {
-                    if let tauri::WindowEvent::Focused(false) = event {
-                        let _ = window_clone.hide();
-                    }
-                });
-            }
+            // 不设置焦点自动隐藏，改为在 open_plugin_window 中显式隐藏主窗口
+            // 这样避免了焦点事件处理的竞态问题
+            eprintln!("[Tauri] Main window focus event handler: DISABLED (handled explicitly in commands)");
 
             Ok(())
         })
@@ -63,6 +114,9 @@ pub fn run() {
             commands::show_window,
             commands::hide_window,
             commands::toggle_window,
+            commands::open_plugin_window,
+            commands::close_plugin_window,
+            commands::close_all_plugin_windows,
             commands::get_plugin_path,
             commands::reload_plugins,
             commands::read_plugin_file,
@@ -72,10 +126,13 @@ pub fn run() {
             commands::emit_event,
             commands::get_start_menu_apps,
             commands::launch_application,
+            commands::everything_search,
             plugin_api::plugin_read_file,
             plugin_api::plugin_write_file,
             plugin_api::plugin_execute_command,
             plugin_api::plugin_show_notification,
+            plugin_api::plugin_everything_search,
+            plugin_api::plugin_http_request,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

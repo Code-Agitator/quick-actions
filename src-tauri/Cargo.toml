@@ -17,8 +17,14 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.52", features = [
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
 [dependencies]
-tauri = { version = "2", features = ["protocol-asset"] }
+tauri = { version = "2", features = ["protocol-asset", "tray-icon"] }
 tauri-plugin-opener = "2"
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-fs = "2"
@@ -29,4 +35,6 @@ walkdir = "2"
 dirs = "5"
 notify = "6"
 pinyin = "0.10"
+reqwest = { version = "0.11", features = ["blocking", "json"] }
+urlencoding = "2.1"
 

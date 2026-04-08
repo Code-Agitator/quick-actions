@@ -68,6 +68,11 @@ import { resolve } from 'path';
 
 export default defineConfig({
   plugins: [react()],
+  define: {
+    // 替换 process.env 为浏览器兼容的值
+    'process.env': JSON.stringify({}),
+    'process.env.NODE_ENV': JSON.stringify('production')
+  },
   build: {
     lib: {
       entry: resolve(__dirname, 'src/index.tsx'),
@@ -76,12 +81,10 @@ export default defineConfig({
       fileName: 'index'
     },
     rollupOptions: {
-      external: ['react', 'react-dom'],
+      // 不要将 react 和 react-dom 标记为 external
+      // 让它们被打包进插件 bundle
       output: {
-        globals: {
-          react: 'React',
-          'react-dom': 'ReactDOM'
-        }
+        inlineDynamicImports: true
       }
     }
   }

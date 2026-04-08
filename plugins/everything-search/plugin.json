@@ -1,0 +1,16 @@
+{
+  "id": "everything-search",
+  "name": "Everything 搜索",
+  "version": "1.0.0",
+  "description": "通过 Everything 快速搜索本地文件",
+  "author": "Quick Actions Team",
+  "entry": "dist/index.js",
+  "icon": "🔍",
+  "keywords": [
+    "everything",
+    "search",
+    "file",
+    "搜索",
+    "文件"
+  ]
+}
