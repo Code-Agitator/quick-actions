@@ -5,25 +5,29 @@ import { PluginApp } from "./PluginApp";
 import { DebugProvider } from "./context/DebugContext";
 import "./index.css";
 
-// 根据 URL 路径决定渲染哪个应用
-const pathname = window.location.pathname;
-const search = window.location.search;
-console.log('[Main] Current pathname:', pathname);
-console.log('[Main] Current search:', search);
-console.log('[Main] Full URL:', window.location.toString());
+// 检测是否为插件窗口
+const isPluginWindow = (() => {
+  const params = new URLSearchParams(window.location.search);
+  const windowParam = params.get('window');
+  const hasSlot = params.get('slot') !== null;
+  const hasStoredPlugin = sessionStorage.getItem('__PLUGIN_ID__') !== null;
+  
+  const result = windowParam === 'plugin' || hasSlot || hasStoredPlugin;
+  
+  console.log('=== WINDOW DETECTION ===');
+  console.log('URL:', window.location.href);
+  console.log('Search params:', Object.fromEntries(params));
+  console.log('window param:', windowParam);
+  console.log('has slot:', hasSlot);
+  console.log('sessionStorage __PLUGIN_ID__:', sessionStorage.getItem('__PLUGIN_ID__'));
+  console.log('Is plugin window:', result);
+  console.log('======================');
+  
+  return result;
+})();
 
-// 检查是否是插件窗口（通过 URL 或查询参数）
-const params = new URLSearchParams(search);
-const windowParam = params.get('window');
-const isPluginWindow = windowParam === 'plugin';
-
-console.log('[Main] Parsed params:', Object.fromEntries(params));
-console.log('[Main] "window" param:', windowParam);
-console.log('[Main] Is plugin window:', isPluginWindow);
-
-// 开发环境下禁用 StrictMode 以避免双重渲染导致的重复日志
-const isDev = import.meta.env.DEV;
-const StrictModeWrapper = isDev ? React.Fragment : React.StrictMode;
+// 开发环境下禁用 StrictMode
+const StrictModeWrapper = import.meta.env.DEV ? React.Fragment : React.StrictMode;
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <StrictModeWrapper>

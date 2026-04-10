@@ -5,6 +5,19 @@ use std::path::PathBuf;
 use walkdir::WalkDir;
 use notify::{Watcher, RecursiveMode, Event};
 use std::sync::mpsc::channel;
+use arboard::Clipboard;
+use std::sync::{Arc, Mutex};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClipboardItem {
+    pub content: String,
+    pub timestamp: u64,
+}
+
+pub struct AppState {
+    pub plugin_manager: Mutex<PluginManager>,
+    pub clipboard_history: Arc<Mutex<Vec<ClipboardItem>>>,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PluginMetadata {
@@ -89,39 +102,53 @@ impl PluginManager {
     pub fn scan_plugins(&mut self) -> Result<Vec<PluginMetadata>, String> {
         self.plugins.clear();
         self.plugin_paths.clear();
+        log::info!("[PluginManager] Starting plugin scan...");
 
         // 获取要扫描的目录
         let user_plugin_dir = self.plugin_dir.clone();
+        log::info!("[PluginManager] Scanning user directory: {:?}", user_plugin_dir);
         self.scan_directory_internal(&user_plugin_dir)?;
 
         // 扫描内置插件目录
         if let Ok(exe_path) = std::env::current_exe() {
             if let Some(exe_dir) = exe_path.parent() {
                 let builtin_plugins = exe_dir.join("plugins");
+                log::info!("[PluginManager] Scanning builtin directory: {:?}", builtin_plugins);
                 self.scan_directory_internal(&builtin_plugins)?;
             }
         }
 
         // 开发模式：扫描项目源码中的 plugins 目录
         if let Ok(current_dir) = std::env::current_dir() {
-            // current_dir 可能是 src-tauri，需要向上一级查找
             let source_plugins = if current_dir.ends_with("src-tauri") {
-                // 如果在 src-tauri 目录，向上一级
                 current_dir.parent().unwrap_or(&current_dir).join("plugins")
             } else {
-                // 否则直接使用当前目录的 plugins
                 current_dir.join("plugins")
             };
             
+            // 避免在生产环境下重复扫描内置目录
+            if let Ok(exe_path) = std::env::current_exe() {
+                if let Some(exe_dir) = exe_path.parent() {
+                    if source_plugins == exe_dir.join("plugins") {
+                        log::debug!("[PluginManager] Skipping source scan as it matches builtin dir.");
+                        return Ok(self.plugins.values().cloned().collect());
+                    }
+                }
+            }
+
             if source_plugins.exists() {
-                println!("[PluginManager] Scanning source plugins directory: {:?}", source_plugins);
+                log::info!("[PluginManager] Scanning source plugins directory: {:?}", source_plugins);
                 self.scan_directory_internal(&source_plugins)?;
             } else {
-                println!("[PluginManager] Source plugins directory does not exist: {:?}", source_plugins);
+                log::debug!("[PluginManager] Source plugins directory does not exist: {:?}", source_plugins);
             }
         }
 
-        println!("[PluginManager] Total plugins loaded: {}", self.plugins.len());
+        log::info!("[PluginManager] Scan complete. Total plugins loaded: {}", self.plugins.len());
+        for (id, meta) in &self.plugins {
+            log::info!("[PluginManager]   - Loaded: {} ({})", id, meta.name);
+        }
+
         Ok(self.plugins.values().cloned().collect())
     }
 
@@ -131,11 +158,11 @@ impl PluginManager {
 
     fn scan_directory_internal(&mut self, dir: &PathBuf) -> Result<(), String> {
         if !dir.exists() {
-            println!("[PluginManager] Directory does not exist: {:?}", dir);
+            log::debug!("[PluginManager] Directory does not exist: {:?}", dir);
             return Ok(());
         }
 
-        println!("[PluginManager] Scanning directory: {:?}", dir);
+        log::info!("[PluginManager] Scanning directory: {:?}", dir);
 
         let entries: Vec<_> = WalkDir::new(dir)
             .max_depth(2)
@@ -145,12 +172,12 @@ impl PluginManager {
 
         for entry in entries {
             if entry.file_name() == "plugin.json" {
-                println!("[PluginManager] Found plugin.json at: {:?}", entry.path());
+                log::info!("[PluginManager] Found plugin.json at: {:?}", entry.path());
                 
                 if let Ok(content) = fs::read_to_string(entry.path()) {
                     match serde_json::from_str::<PluginMetadata>(&content) {
                         Ok(metadata) => {
-                            println!("[PluginManager] ✓ Loaded plugin: {} ({})", metadata.id, metadata.name);
+                            log::info!("[PluginManager] ✓ Loaded plugin: {} ({})", metadata.id, metadata.name);
                             
                             // 记录插件的实际目录路径（plugin.json 的父目录）
                             if let Some(plugin_dir) = entry.path().parent() {
@@ -159,9 +186,7 @@ impl PluginManager {
                             self.plugins.insert(metadata.id.clone(), metadata);
                         },
                         Err(e) => {
-                            eprintln!("[PluginManager] ✗ Failed to parse plugin.json at {:?}", entry.path());
-                            eprintln!("[PluginManager]   Error: {}", e);
-                            eprintln!("[PluginManager]   Content preview: {}...", &content[..100.min(content.len())]);
+                            log::error!("[PluginManager] ✗ Failed to parse plugin.json at {:?}: {}", entry.path(), e);
                         }
                     }
                 }
@@ -208,11 +233,51 @@ impl PluginManager {
     }
 
     pub fn uninstall_plugin(&mut self, id: &str) -> Result<(), String> {
-        let plugin_dir = self.plugin_dir.join(id);
-        if plugin_dir.exists() {
-            fs::remove_dir_all(plugin_dir).map_err(|e| e.to_string())?;
+        let mut success = false;
+        let mut last_error: Option<String> = None;
+
+        // 1. 卸载用户目录下的插件 (优先级最高，通常有权限)
+        let user_plugin_dir = self.plugin_dir.join(id);
+        if user_plugin_dir.exists() {
+            match fs::remove_dir_all(&user_plugin_dir) {
+                Ok(_) => {
+                    log::info!("[PluginManager] Uninstalled plugin from user dir: {:?}", user_plugin_dir);
+                    success = true;
+                }
+                Err(e) => {
+                    log::warn!("[PluginManager] Failed to uninstall from user dir: {}", e);
+                    last_error = Some(e.to_string());
+                }
+            }
         }
+
+        // 2. 卸载内置/开发模式下的插件 (exe 同级目录)
+        if let Ok(exe_path) = std::env::current_exe() {
+            if let Some(exe_dir) = exe_path.parent() {
+                let builtin_plugin_dir = exe_dir.join("plugins").join(id);
+                if builtin_plugin_dir.exists() {
+                    match fs::remove_dir_all(&builtin_plugin_dir) {
+                        Ok(_) => {
+                            log::info!("[PluginManager] Uninstalled plugin from builtin dir: {:?}", builtin_plugin_dir);
+                            success = true;
+                        }
+                        Err(e) => {
+                            log::error!("[PluginManager] Permission denied for builtin dir {:?}: {}. This is expected in Program Files.", builtin_plugin_dir, e);
+                            last_error = Some(format!("拒绝访问 ({}). 插件位于受保护的系统目录，请以管理员身份运行应用或删除文件。", e));
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. 从内存中移除
         self.plugins.remove(id);
-        Ok(())
+        self.plugin_paths.remove(id);
+
+        if success {
+            Ok(())
+        } else {
+            Err(last_error.unwrap_or_else(|| "Plugin not found or unknown error".to_string()))
+        }
     }
 }

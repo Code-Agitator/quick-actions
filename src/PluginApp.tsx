@@ -9,14 +9,35 @@ import { Plugin } from './types/plugin';
 export function PluginApp() {
   const [selectedPlugin, setSelectedPlugin] = useState<Plugin | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // 解析 URL 参数获取插件信息
-  const parseUrlParams = useCallback(() => {
+  // 从 sessionStorage 或 URL 参数获取插件信息
+  const parsePluginInfo = useCallback(() => {
+    // 首先尝试从 sessionStorage 获取（窗口池方案）
+    const storedId = sessionStorage.getItem('__PLUGIN_ID__');
+    const storedEntry = sessionStorage.getItem('__PLUGIN_ENTRY__');
+    
+    if (storedId) {
+      console.log('[PluginApp] Found plugin info from sessionStorage');
+      return {
+        pluginId: storedId,
+        entry: storedEntry || 'index.js',
+      };
+    }
+    
+    // 否则从 URL 参数获取（备用方案）
     const params = new URLSearchParams(window.location.search);
-    return {
-      pluginId: params.get('id') || '',
-      entry: params.get('entry') || 'index.js',
-    };
+    const pluginId = params.get('id');
+    const entry = params.get('entry') || 'index.js';
+    
+    console.log('[PluginApp] === PARSING PLUGIN INFO ===');
+    console.log('[PluginApp] Full URL:', window.location.href);
+    console.log('[PluginApp] Search:', window.location.search);
+    console.log('[PluginApp] sessionStorage ID:', storedId);
+    console.log('[PluginApp] Parsed - pluginId:', pluginId, ', entry:', entry);
+    console.log('[PluginApp] ==========================');
+    
+    return { pluginId: pluginId || '', entry };
   }, []);
 
   // 加载插件模块
@@ -61,29 +82,33 @@ export function PluginApp() {
     console.log('[PluginApp] window.location.href:', window.location.href);
     
     const setupPluginWindow = async () => {
-      const { pluginId, entry } = parseUrlParams();
+      const { pluginId, entry } = parsePluginInfo();
       
-      console.log('[PluginApp] Parsed URL params - pluginId:', pluginId, ', entry:', entry);
+      console.log('[PluginApp] Parsed plugin info - pluginId:', pluginId, ', entry:', entry);
       
       if (!pluginId) {
         console.error('[Plugin Window] No plugin ID in URL');
+        setError('未找到插件 ID');
         setLoading(false);
         return;
       }
 
-      console.log('[Plugin Window] Auto-loading plugin from URL:', { pluginId, entry });
+      console.log('[Plugin Window] === LOADING PLUGIN ===');
+      console.log('[Plugin Window] pluginId:', pluginId);
+      console.log('[Plugin Window] entry:', entry);
 
       try {
         // 获取所有插件列表
         console.log('[Plugin Window] Fetching plugins list...');
         const pluginsList = await invoke<any[]>('get_plugins');
-        console.log('[Plugin Window] Plugins list:', pluginsList);
+        console.log('[Plugin Window] Found', pluginsList.length, 'plugins');
         
         const pluginMeta = pluginsList.find(p => p.id === pluginId);
-        console.log('[Plugin Window] Found plugin meta:', pluginMeta);
+        console.log('[Plugin Window] Plugin meta:', pluginMeta ? 'found' : 'NOT FOUND');
         
         if (!pluginMeta) {
           console.error('[Plugin Window] Plugin not found:', pluginId);
+          setError(`插件 "${pluginId}" 不存在`);
           setLoading(false);
           return;
         }
@@ -119,8 +144,10 @@ export function PluginApp() {
         await currentWindow.setFocus();
         console.log('[Plugin Window] Plugin loaded and window shown');
       } catch (error) {
-        console.error('[Plugin Window] Error loading plugin:', error);
-        console.error('[Plugin Window] Error stack:', error instanceof Error ? error.stack : 'N/A');
+        console.error('[Plugin Window] === ERROR ===');
+        console.error('[Plugin Window] Error:', error);
+        console.error('[Plugin Window] Stack:', error instanceof Error ? error.stack : 'N/A');
+        setError(`加载失败: ${error instanceof Error ? error.message : String(error)}`);
         setLoading(false);
       }
     };
@@ -130,8 +157,8 @@ export function PluginApp() {
       console.log('[Plugin Window] Received load-plugin event:', event);
       const pluginData = event.payload as Plugin;
       
-      // 从 URL 获取入口文件（如果事件中没提供）
-      const { entry: urlEntry } = parseUrlParams();
+      // 从全局变量或 URL 获取入口文件（如果事件中没提供）
+      const { entry: urlEntry } = parsePluginInfo();
       const effectiveEntry = pluginData.entry || urlEntry;
       pluginData.entry = effectiveEntry;
 
@@ -163,7 +190,7 @@ export function PluginApp() {
       unlisten.then(fn => fn());
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [parseUrlParams, loadPluginModule]);
+  }, [parsePluginInfo, loadPluginModule]);
 
   const handleClose = async () => {
     // 隐藏窗口而不是关闭
@@ -182,6 +209,17 @@ export function PluginApp() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-900">
         <div className="text-white text-lg">加载中...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-900">
+        <div className="text-red-400 text-lg">
+          <div className="mb-2">❌ 加载失败</div>
+          <div className="text-sm text-gray-400">{error}</div>
+        </div>
       </div>
     );
   }

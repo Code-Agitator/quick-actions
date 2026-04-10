@@ -5,12 +5,13 @@ mod plugin_api;
 use commands::AppState;
 use plugin_manager::PluginManager;
 use std::sync::{Arc, Mutex};
+use std::collections::VecDeque;
 use tauri::{Manager, Emitter, menu::{Menu, MenuItem, PredefinedMenuItem}, tray::{TrayIconBuilder, MouseButton, MouseButtonState}};
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
 fn toggle_main_window(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
-        let _ = commands::toggle_window(window);
+        let _ = commands::toggle_window(window, app.clone());
     }
 }
 
@@ -22,13 +23,96 @@ fn quit_app(app: &tauri::AppHandle) {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_log::Builder::new()
+            .level(log::LevelFilter::Debug)
+            .target(tauri_plugin_log::Target::new(
+                tauri_plugin_log::TargetKind::Folder {
+                    path: dirs::data_dir().unwrap().join("com.develop.quick-actions"),
+                    file_name: Some("logs".to_string()),
+                },
+            ))
+            .build())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
             let plugin_manager = PluginManager::new().expect("Failed to initialize plugin manager");
+
+            // 【关键修复】先注册 AppState，再创建窗口，防止前端在窗口初始化时调用命令报错
+            log::info!("[Setup] Registering AppState...");
             app.manage(AppState {
                 plugin_manager: Mutex::new(plugin_manager),
+                plugin_window_pool: Mutex::new(VecDeque::new()),
+            });
+            log::info!("[Setup] AppState registered.");
+            
+            // 预创建插件窗口池
+            eprintln!("[Window Pool] Creating plugin window pool...");
+            let mut window_pool = VecDeque::new();
+            let app_handle = app.handle().clone();
+            
+            for i in 0..5 {
+                let window_label = format!("plugin-slot-{}", i);
+                eprintln!("[Window Pool] Creating slot {}...", i);
+                
+                match tauri::WebviewWindowBuilder::new(
+                    &app_handle,
+                    &window_label,
+                    tauri::WebviewUrl::App(format!("index.html?window=plugin&slot={}", i).into())
+                )
+                    .title("Plugin Window")
+                    .inner_size(1200.0, 800.0)
+                    .center()
+                    .decorations(true)
+                    .transparent(false)
+                    .always_on_top(false)
+                    .skip_taskbar(false)
+                    .visible(false)  // 初始隐藏
+                    .build()
+                {
+                    Ok(_) => {
+                        window_pool.push_back(window_label);
+                        eprintln!("[Window Pool] ✓ Slot {} created", i);
+                    }
+                    Err(e) => {
+                        eprintln!("[Window Pool] ✗ Failed to create slot {}: {}", i, e);
+                    }
+                }
+            }
+            
+            eprintln!("[Window Pool] Created {} slots", window_pool.len());
+            
+            // 更新窗口池引用（因为之前 manage 的是空的）
+            let mut state = app.state::<AppState>();
+            let mut pool_guard = state.plugin_window_pool.lock().unwrap();
+            *pool_guard = window_pool;
+            drop(pool_guard);
+            log::info!("[Setup] Window pool updated with {} slots.", state.plugin_window_pool.lock().unwrap().len());
+            
+            // 启动剪贴板后台监听线程
+            let app_handle = app.handle().clone();
+            std::thread::spawn(move || {
+                use arboard::Clipboard;
+                use std::time::Duration;
+                
+                let mut last_content = String::new();
+                loop {
+                    std::thread::sleep(Duration::from_millis(1000));
+                    if let Ok(mut clipboard) = Clipboard::new() {
+                        if let Ok(text) = clipboard.get_text() {
+                            if !text.is_empty() && text != last_content {
+                                log::info!("[Clipboard Monitor] Detected new content: {}", text.chars().take(20).collect::<String>());
+                                last_content = text.clone();
+                                // 存入通用存储 (使用专门的 key)
+                                let _ = commands::storage_set(
+                                    "clipboard_history".to_string(), 
+                                    text, 
+                                    app_handle.clone()
+                                );
+                            }
+                        }
+                    }
+                }
             });
 
             // 创建托盘图标
@@ -80,23 +164,32 @@ pub fn run() {
             let handle = app.handle().clone();
             let last_toggle = Arc::new(Mutex::new(std::time::Instant::now()));
 
-            if let Err(e) = app.global_shortcut().on_shortcut("Alt+Space", move |_app, _shortcut, _event| {
+            if let Err(e) = app.global_shortcut().on_shortcut("Ctrl+Space", move |_app, _shortcut, event| {
+                use tauri_plugin_global_shortcut::ShortcutState;
+                
+                // 只在按键按下时触发，忽略释放事件
+                if event.state() != ShortcutState::Pressed {
+                    eprintln!("[Shortcut] Ignored {:?} event", event.state());
+                    return;
+                }
+                
                 let mut last = last_toggle.lock().unwrap();
                 let now = std::time::Instant::now();
 
-                // 防抖：只有距离上次触发超过 200ms 才执行
-                if now.duration_since(*last).as_millis() > 200 {
+                // 防抖：只有距离上次触发超过 300ms 才执行
+                if now.duration_since(*last).as_millis() > 300 {
                     *last = now;
-                    if let Some(window) = handle.get_webview_window("main") {
-                        let _ = commands::toggle_window(window);
-                    }
+                    eprintln!("[Shortcut] Ctrl+Space pressed - toggling window");
+                    toggle_main_window(&handle);
+                } else {
+                    eprintln!("[Shortcut] Ctrl+Space skipped (debounce: {}ms)", now.duration_since(*last).as_millis());
                 }
             }) {
                 eprintln!("Warning: Failed to register shortcut handler: {}", e);
             }
 
-            if let Err(e) = app.global_shortcut().register("Alt+Space") {
-                eprintln!("Warning: Failed to register global shortcut Alt+Space: {}", e);
+            if let Err(e) = app.global_shortcut().register("Ctrl+Space") {
+                eprintln!("Warning: Failed to register global shortcut Ctrl+Space: {}", e);
                 eprintln!("You can still use the app, but the global shortcut won't work.");
             }
 
@@ -133,6 +226,12 @@ pub fn run() {
             plugin_api::plugin_show_notification,
             plugin_api::plugin_everything_search,
             plugin_api::plugin_http_request,
+            commands::clipboard_read,
+            commands::clipboard_write,
+            commands::storage_set,
+            commands::storage_get,
+            commands::get_clipboard_history,
+            commands::log_frontend_message,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

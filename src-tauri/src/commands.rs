@@ -2,10 +2,12 @@ use crate::plugin_manager::{PluginManager, PluginMetadata, PluginResult};
 use std::sync::Mutex;
 use std::path::PathBuf;
 use tauri::{State, WebviewWindow, Emitter, Manager, WebviewWindowBuilder};
+use std::collections::VecDeque;
 use pinyin::ToPinyin;
 
 pub struct AppState {
     pub plugin_manager: Mutex<PluginManager>,
+    pub plugin_window_pool: Mutex<VecDeque<String>>,  // 窗口标签池
 }
 
 /// 将中文转换为拼音（首字母）
@@ -38,24 +40,68 @@ fn matches_search(text: &str, query: &str) -> bool {
     let text_lower = text.to_lowercase();
     let query_lower = query.to_lowercase();
     
-    // 直接匹配
+    // 1. 直接包含匹配 (最快)
     if text_lower.contains(&query_lower) {
         return true;
     }
     
-    // 拼音首字母匹配
-    let initials = to_pinyin_initials(text);
-    if initials.contains(&query_lower) {
+    // 2. 子序列模糊匹配 (例如: et -> everything)
+    if is_subsequence(&query_lower, &text_lower) {
+        return true;
+    }
+
+    // 3. 宽松字符匹配：只要目标包含查询中的所有字符即可 (例如: evet -> everything)
+    if contains_all_chars(&query_lower, &text_lower) {
         return true;
     }
     
-    // 完整拼音匹配
+    // 4. 拼音首字母匹配
+    let initials = to_pinyin_initials(text);
+    if initials.contains(&query_lower) || is_subsequence(&query_lower, &initials) {
+        return true;
+    }
+    
+    // 5. 完整拼音匹配
     let full_pinyin = to_pinyin_full(text);
-    if full_pinyin.contains(&query_lower) {
+    if full_pinyin.contains(&query_lower) || is_subsequence(&query_lower, &full_pinyin) {
         return true;
     }
     
     false
+}
+
+/// 检查 target 是否包含 query 中的所有字符（忽略顺序）
+fn contains_all_chars(query: &str, target: &str) -> bool {
+    let mut target_chars: Vec<char> = target.chars().collect();
+    for qc in query.chars() {
+        if let Some(pos) = target_chars.iter().position(|&x| x == qc) {
+            target_chars.remove(pos);
+        } else {
+            return false;
+        }
+    }
+    true
+}
+
+/// 检查 query 是否是 target 的子序列 (Subsequence)
+/// 例如: "et" 是 "everything" 的子序列
+fn is_subsequence(query: &str, target: &str) -> bool {
+    let mut query_chars = query.chars();
+    let mut target_chars = target.chars();
+    
+    while let Some(qc) = query_chars.next() {
+        let mut found = false;
+        for tc in target_chars.by_ref() {
+            if qc == tc {
+                found = true;
+                break;
+            }
+        }
+        if !found {
+            return false;
+        }
+    }
+    true
 }
 
 /// 获取应用程序图标（Base64 编码）
@@ -99,132 +145,84 @@ pub fn install_plugin(path: String, state: State<AppState>) -> Result<(), String
 
 #[tauri::command]
 pub fn uninstall_plugin(id: String, state: State<AppState>) -> Result<(), String> {
+    log::info!("[Commands] Received request to uninstall plugin: {}", id);
     let mut manager = state.plugin_manager.lock().unwrap();
-    manager.uninstall_plugin(&id)
+    let result = manager.uninstall_plugin(&id);
+    if result.is_ok() {
+        log::info!("[Commands] Plugin {} uninstalled successfully.", id);
+    } else {
+        log::error!("[Commands] Failed to uninstall plugin {}: {:?}", id, result);
+    }
+    result
 }
 
-/// 动态创建并显示插件窗口
+/// 动态创建并显示插件窗口（使用窗口池）
 #[tauri::command]
 pub fn open_plugin_window(
     plugin_id: String,
     plugin_name: String,
     entry: String,
     app: tauri::AppHandle,
+    state: State<AppState>,
 ) -> Result<(), String> {
-    let window_label = format!("plugin-{}", plugin_id);
+    eprintln!("[Window Pool] === REQUEST PLUGIN WINDOW ===");
+    eprintln!("[Window Pool] plugin_id: {}", plugin_id);
+    eprintln!("[Window Pool] plugin_name: {}", plugin_name);
     
-    eprintln!("[Rust] open_plugin_window called");
-    eprintln!("[Rust] plugin_id: {}", plugin_id);
-    eprintln!("[Rust] plugin_name: {}", plugin_name);
-    eprintln!("[Rust] entry: {}", entry);
-    eprintln!("[Rust] window_label: {}", window_label);
+    // 从池中获取一个窗口
+    let window_label = {
+        let mut pool = state.plugin_window_pool.lock().unwrap();
+        
+        if pool.is_empty() {
+            eprintln!("[Window Pool] ✗ No available slots in pool!");
+            return Err("No available plugin windows".to_string());
+        }
+        
+        // 取出最早的窗口（FIFO）
+        let label = pool.pop_front().unwrap();
+        eprintln!("[Window Pool] Allocated slot: {}", label);
+        
+        // 将标签放回池尾（循环使用）
+        pool.push_back(label.clone());
+        
+        label
+    };
     
-    // 如果窗口已存在，先关闭它
-    if let Some(existing_window) = app.get_webview_window(&window_label) {
-        eprintln!("[Rust] Window {} already exists, closing...", window_label);
-        let _ = existing_window.close();
-        // 等待窗口关闭
-        std::thread::sleep(std::time::Duration::from_millis(100));
+    // 获取窗口
+    let window = app.get_webview_window(&window_label)
+        .ok_or_else(|| format!("Window {} not found", window_label))?;
+    
+    eprintln!("[Window Pool] Configuring window: {}", window_label);
+    
+    // 使用 sessionStorage 持久化插件信息（reload 后仍然可用）
+    let plugin_info_js = format!(
+        "sessionStorage.setItem('__PLUGIN_ID__', '{}'); \
+         sessionStorage.setItem('__PLUGIN_ENTRY__', '{}'); \
+         window.location.reload();",
+        plugin_id, entry
+    );
+    
+    match window.eval(&plugin_info_js) {
+        Ok(_) => eprintln!("[Window Pool] ✓ Plugin info saved to sessionStorage"),
+        Err(e) => {
+            eprintln!("[Window Pool] ✗ Failed to save plugin info: {}", e);
+            return Err(format!("Failed to save plugin info: {}", e));
+        }
     }
     
-    // 根据开发模式决定使用什么 URL
-    #[cfg(debug_assertions)]
-    {
-        // 开发模式：使用 WebviewUrl::App 让 Tauri 自动处理 dev server URL
-        let url = tauri::WebviewUrl::App(format!("/index.html?window=plugin&id={}&entry={}", plugin_id, entry).into());
-        
-        eprintln!("[Rust] Dev mode detected, using WebviewUrl::App");
-        eprintln!("[Rust] Creating window...");
-        let new_window = WebviewWindowBuilder::new(&app, &window_label, url)
-            .title(&plugin_name)
-            .inner_size(1200.0, 800.0)
-            .center()
-            .decorations(false)
-            .transparent(false)
-            .always_on_top(false)
-            .skip_taskbar(false)
-            .visible(true)
-            .build()
-            .map_err(|e| {
-                eprintln!("[Rust] Failed to create window: {}", e);
-                format!("Failed to create window: {}", e)
-            })?;
-        
-        eprintln!("[Rust] Window created successfully");
-        eprintln!("[Rust] Window URL: {:?}", new_window.url());
-        
-        // 确保窗口获得焦点
-        std::thread::sleep(std::time::Duration::from_millis(50));
-        match new_window.set_focus() {
-            Ok(_) => eprintln!("[Rust] Window focus set successfully"),
-            Err(e) => eprintln!("[Rust] Failed to set window focus: {}", e),
-        }
-        
-        // 同时隐藏主窗口
-        if let Some(main_window) = app.get_webview_window("main") {
-            eprintln!("[Rust] Hiding main window");
-            let _ = main_window.hide();
-        }
-        
-        eprintln!("[Rust] open_plugin_window completed successfully");
-        return Ok(());
+    // 显示窗口
+    window.show().map_err(|e| e.to_string())?;
+    window.set_focus().map_err(|e| e.to_string())?;
+    eprintln!("[Window Pool] ✓ Window shown and focused");
+    
+    // 隐藏主窗口
+    if let Some(main_window) = app.get_webview_window("main") {
+        let _ = main_window.hide();
+        eprintln!("[Window Pool] Main window hidden");
     }
     
-    // 生产模式使用 tauri:// 协议
-    #[cfg(not(debug_assertions))]
-    {
-        let url_str = format!("tauri://localhost/index.html?window=plugin&id={}&entry={}", plugin_id, entry);
-        
-        eprintln!("[Rust] Prod mode detected, using tauri:// protocol");
-        eprintln!("[Rust] URL string: {}", url_str);
-        
-        let parsed_url = tauri::Url::parse(&url_str).map_err(|e| format!("Failed to parse URL: {}", e))?;
-        eprintln!("[Rust] Parsed URL - scheme: {}, host: {:?}, path: {}, query: {:?}", 
-            parsed_url.scheme(),
-            parsed_url.host(),
-            parsed_url.path(),
-            parsed_url.query()
-        );
-        
-        let url = tauri::WebviewUrl::External(parsed_url);
-        
-        eprintln!("[Rust] WebviewUrl type: External");
-        
-        eprintln!("[Rust] Creating window...");
-        let new_window = WebviewWindowBuilder::new(&app, &window_label, url)
-            .title(&plugin_name)
-            .inner_size(1200.0, 800.0)
-            .center()
-            .decorations(false)
-            .transparent(false)
-            .always_on_top(false)
-            .skip_taskbar(false)
-            .visible(true)
-            .build()
-            .map_err(|e| {
-                eprintln!("[Rust] Failed to create window: {}", e);
-                format!("Failed to create window: {}", e)
-            })?;
-        
-        eprintln!("[Rust] Window created successfully");
-        eprintln!("[Rust] Window URL: {:?}", new_window.url());
-        
-        // 确保窗口获得焦点
-        std::thread::sleep(std::time::Duration::from_millis(50));
-        match new_window.set_focus() {
-            Ok(_) => eprintln!("[Rust] Window focus set successfully"),
-            Err(e) => eprintln!("[Rust] Failed to set window focus: {}", e),
-        }
-        
-        // 同时隐藏主窗口
-        if let Some(main_window) = app.get_webview_window("main") {
-            eprintln!("[Rust] Hiding main window");
-            let _ = main_window.hide();
-        }
-        
-        eprintln!("[Rust] open_plugin_window completed successfully");
-        return Ok(());
-    }
+    eprintln!("[Window Pool] === WINDOW READY ===");
+    Ok(())
 }
 
 /// 关闭指定插件窗口
@@ -298,39 +296,75 @@ pub fn show_window(window: WebviewWindow) -> Result<(), String> {
     std::thread::sleep(std::time::Duration::from_millis(20));
     window.set_focus().ok(); // 忽略错误，作为重试
     
+    // 如果是主窗口，等待窗口完全激活后再聚焦输入框
+    if window.label() == "main" {
+        // 增加延迟时间，确保窗口系统级焦点已设置
+        std::thread::sleep(std::time::Duration::from_millis(150));
+        
+        let focus_input_js = r#"
+            (function() {
+                const input = document.querySelector('input[type="text"], input:not([type]), .search-input, [data-testid="search-input"]');
+                if (input) {
+                    // 确保输入框获得焦点并选中所有文本
+                    input.focus();
+                    // 延迟一点再选中，确保 focus 已完成
+                    setTimeout(() => {
+                        input.select();
+                        console.log('[AutoFocus] Input focused and text selected');
+                    }, 10);
+                } else {
+                    console.warn('[AutoFocus] Input element not found');
+                }
+            })();
+        "#;
+        let _ = window.eval(focus_input_js);
+        eprintln!("[Window Manager] Auto-focus triggered for main window");
+    }
+    
     Ok(())
 }
 
 #[tauri::command]
-pub fn hide_window(window: WebviewWindow) -> Result<(), String> {
-    eprintln!("[Rust] hide_window called on label: {:?}", window.label());
-    eprintln!("[Rust] Is window visible? {:?}", window.is_visible());
-    let result = window.hide();
-    match result {
-        Ok(_) => {
-            eprintln!("[Rust] hide_window succeeded");
-            Ok(())
-        }
-        Err(e) => {
-            eprintln!("[Rust] hide_window failed: {}", e);
-            Err(e.to_string())
+pub fn hide_window(window: WebviewWindow, app: tauri::AppHandle) -> Result<(), String> {
+    eprintln!("[Window Manager] hide_window called on: {}", window.label());
+    
+    let is_plugin = window.label().starts_with("plugin-");
+    
+    window.hide().map_err(|e| e.to_string())?;
+    eprintln!("[Window Manager] Window hidden");
+    
+    // 如果隐藏的是插件窗口，显示主窗口
+    if is_plugin {
+        eprintln!("[Window Manager] Plugin window hidden, showing main window");
+        if let Some(main_window) = app.get_webview_window("main") {
+            let _ = main_window.show();
+            let _ = main_window.set_focus();
+            eprintln!("[Window Manager] Main window shown and focused");
         }
     }
+    
+    Ok(())
 }
 
 #[tauri::command]
-pub fn toggle_window(window: WebviewWindow) -> Result<(), String> {
+pub fn toggle_window(window: WebviewWindow, app: tauri::AppHandle) -> Result<(), String> {
+    eprintln!("[Window Manager] toggle_window called on: {}", window.label());
+    
     if window.is_visible().unwrap_or(false) {
-        hide_window(window)
+        // 隐藏当前窗口
+        hide_window(window, app)
     } else {
-        // 显示主窗口前，先隐藏所有插件窗口
-        let windows = window.app_handle().webview_windows();
-        for (label, win) in windows.iter() {
-            if label.starts_with("plugin-") {
-                let _ = win.hide();
-            }
+        // 只显示主窗口，不隐藏插件窗口
+        eprintln!("[Window Manager] Showing window without hiding plugins");
+        show_window(window.clone())?;
+        
+        // 确保主窗口获得焦点
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        if let Err(e) = window.set_focus() {
+            eprintln!("[Window Manager] Failed to set focus: {}", e);
         }
-        show_window(window)
+        
+        Ok(())
     }
 }
 
@@ -754,4 +788,98 @@ pub fn everything_search(query: String, host: Option<String>) -> Result<Everythi
         .collect();
     
     Ok(EverythingResponse { results })
+}
+
+/// 通用剪贴板 API: 读取文本
+#[tauri::command]
+pub fn clipboard_read() -> Result<String, String> {
+    use arboard::Clipboard;
+    let mut clipboard = Clipboard::new().map_err(|e| e.to_string())?;
+    clipboard.get_text().map_err(|e| e.to_string())
+}
+
+/// 通用剪贴板 API: 写入文本
+#[tauri::command]
+pub fn clipboard_write(text: String) -> Result<(), String> {
+    use arboard::Clipboard;
+    let mut clipboard = Clipboard::new().map_err(|e| e.to_string())?;
+    clipboard.set_text(&text).map_err(|e| e.to_string())
+}
+
+/// 通用存储 API: 设置键值对 (持久化)
+#[tauri::command]
+pub fn storage_set(key: String, value: String, app: tauri::AppHandle) -> Result<(), String> {
+    let path = app.path().app_data_dir().map_err(|e| e.to_string())?.join("plugin_storage.json");
+    let mut data: std::collections::HashMap<String, String> = if path.exists() {
+        serde_json::from_str(&std::fs::read_to_string(&path).unwrap_or_default()).unwrap_or_default()
+    } else {
+        std::collections::HashMap::new()
+    };
+    
+    // 特殊处理：如果是剪贴板历史，则追加到数组
+    if key == "clipboard_history" {
+        let mut history: Vec<serde_json::Value> = data.get(&key)
+            .and_then(|v| serde_json::from_str(v).ok())
+            .unwrap_or_default();
+        
+        let new_item = serde_json::json!({
+            "content": value,
+            "timestamp": chrono::Local::now().timestamp_millis()
+        });
+        
+        eprintln!("[Storage] Adding to history. Current size: {}", history.len());
+        
+        // 去重：如果最新的一条和当前一样，则不添加
+        if history.is_empty() || history[0]["content"] != value {
+            history.insert(0, new_item);
+            if history.len() > 50 { history.truncate(50); }
+            let json_str = serde_json::to_string(&history).map_err(|e| e.to_string())?;
+            data.insert(key, json_str);
+            log::info!("[Storage] History updated. New size: {}", history.len());
+        } else {
+            log::debug!("[Storage] Duplicate content skipped.");
+            return Ok(());
+        }
+    } else {
+        data.insert(key, value);
+    }
+    
+    std::fs::write(path, serde_json::to_string_pretty(&data).map_err(|e| e.to_string())?).map_err(|e| e.to_string())
+}
+
+/// 通用存储 API: 获取键值对
+#[tauri::command]
+pub fn storage_get(key: String, app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let path = app.path().app_data_dir().map_err(|e| e.to_string())?.join("plugin_storage.json");
+    if !path.exists() { 
+        // log::debug!("[Storage] File not found: {:?}", path);
+        return Ok(None); 
+    }
+    let content = std::fs::read_to_string(&path).unwrap_or_default();
+    let data: std::collections::HashMap<String, String> = serde_json::from_str(&content).unwrap_or_default();
+    let result = data.get(&key).cloned();
+    // log::debug!("[Storage] Get key '{}'. Found: {}", key, result.is_some());
+    if let Some(ref val) = result {
+        log::debug!("[Storage] Value preview: {}", val.chars().take(50).collect::<String>());
+    }
+    Ok(result)
+}
+
+/// 前端日志上报命令 (用于正式版调试)
+#[tauri::command]
+pub fn log_frontend_message(level: String, message: String) {
+    match level.as_str() {
+        "error" => log::error!("[Frontend] {}", message),
+        "warn" => log::warn!("[Frontend] {}", message),
+        _ => log::info!("[Frontend] {}", message),
+    }
+}
+
+/// 通用剪贴板历史 API: 获取最近 N 条记录 (从存储中解析)
+#[tauri::command]
+pub fn get_clipboard_history(limit: usize, app: tauri::AppHandle) -> Result<Vec<serde_json::Value>, String> {
+    // 这里我们可以简单地返回最近一次的内容，或者在 storage_set 时维护一个 JSON 数组
+    // 为了简化，我们让插件自己去维护数组，Rust 只负责存最新的和读最新的
+    // 但为了满足“历史记录”，我们修改 storage_set 的逻辑，专门针对 clipboard_history 做数组追加
+    Ok(vec![])
 }

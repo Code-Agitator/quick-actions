@@ -196,24 +196,84 @@ export default App;
 
 fs.writeFileSync(path.join(srcDir, 'App.tsx'), appTsx);
 
+// 创建 src/types/plugin.d.ts (类型定义)
+console.log('🛡️  Creating type definitions...');
+const typesDir = path.join(srcDir, 'types');
+fs.mkdirSync(typesDir, { recursive: true });
+
+const pluginTypes = `/**
+ * Quick Actions Plugin API Types
+ * 
+ * This file provides robust type inference for the plugin environment.
+ */
+
+export interface PluginAPI {
+  fs: {
+    /** Read file content from allowed paths */
+    readFile: (path: string) => Promise<string>;
+    /** Write content to a file in allowed paths */
+    writeFile: (path: string, content: string) => Promise<void>;
+    /** List directory contents */
+    listDir: (path: string) => Promise<string[]>;
+  };
+  shell: {
+    /** Execute a system command with arguments */
+    execute: (command: string, args?: string[]) => Promise<string>;
+  };
+  notification: {
+    /** Show a system notification */
+    show: (title: string, body: string) => Promise<void>;
+  };
+  clipboard: {
+    /** Write text to clipboard */
+    writeText: (text: string) => Promise<void>;
+    /** Read text from clipboard */
+    readText: () => Promise<string>;
+  };
+}
+
+export interface PluginMetadata {
+  id: string;
+  name: string;
+  version: string;
+  description: string;
+  icon?: string;
+  keywords?: string[];
+}
+
+export interface PluginResult {
+  title: string;
+  description?: string;
+  icon?: string;
+  action?: () => void | Promise<void>;
+  customUI?: any; // For React components
+}
+
+export interface PluginModule {
+  metadata: PluginMetadata;
+  render?: (options: { query?: string; onResult?: (result: PluginResult) => void }) => HTMLElement;
+  execute?: (query: string, api: PluginAPI) => Promise<PluginResult[]>;
+}
+`;
+
+fs.writeFileSync(path.join(srcDir, 'types', 'plugin.d.ts'), pluginTypes);
+
 // 创建 src/index.tsx
 console.log('📦 Creating entry point...');
 const indexTsx = `import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import type { PluginModule, PluginResult, PluginAPI } from './types/plugin';
 
 /**
  * Render the plugin UI
- * @param options - Plugin options
- * @returns DOM element containing the plugin UI
+ * @param options - Plugin options including search query and result callback
  */
-export function render({ query, onResult }: { query?: string; onResult?: (result: any) => void }) {
-  // Create container
+export function render({ query, onResult }: { query?: string; onResult?: (result: PluginResult) => void }) {
   const container = document.createElement('div');
   container.id = '${pluginName}-root';
-  container.className = 'plugin-container';
+  container.className = 'plugin-container h-full w-full';
   
-  // Render React component
   const root = ReactDOM.createRoot(container);
   root.render(<App query={query} onResult={onResult} />);
   
@@ -221,8 +281,24 @@ export function render({ query, onResult }: { query?: string; onResult?: (result
 }
 
 /**
- * Plugin metadata
+ * Optional: Handle search queries directly without UI
+ * @param query - The user's search input
+ * @param api - The secure plugin API instance
  */
+export async function execute(query: string, api: PluginAPI): Promise<PluginResult[]> {
+  // Example: Return a simple result
+  return [
+    {
+      title: 'Hello ${pluginName}',
+      description: \`You searched for: \${query}\`,
+      icon: '✨',
+      action: () => {
+        console.log('Action triggered!');
+      }
+    }
+  ];
+}
+
 export const metadata = {
   id: '${pluginName}',
   name: '${pluginName.replace(/-/g, ' ').replace(/\\b\\w/g, l => l.toUpperCase())}',
@@ -230,8 +306,7 @@ export const metadata = {
   description: 'A standalone React plugin for Quick Actions'
 };
 
-// Default export for compatibility
-export default { render, metadata };
+export default { render, execute, metadata };
 `;
 
 fs.writeFileSync(path.join(srcDir, 'index.tsx'), indexTsx);
@@ -262,6 +337,47 @@ dist/
 `;
 
 fs.writeFileSync(path.join(pluginDir, '.gitignore'), gitignore);
+
+// 创建 README.md
+console.log('📖 Creating README.md...');
+const readme = `# ${pluginName.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+
+## 🚀 Development
+
+1. Install dependencies: \`pnpm install\`
+2. Start dev server: \`pnpm dev\`
+3. Build for production: \`pnpm build\`
+
+## 🛠️ Built-in API Capabilities
+
+The plugin environment provides a secure \`api\` object with the following capabilities:
+
+### File System (\`api.fs\`)
+- \`readFile(path: string)\`: Read content from allowed paths.
+- \`writeFile(path: string, content: string)\`: Write content to files.
+- \`listDir(path: string)\`: List directory contents.
+
+### Shell Execution (\`api.shell\`)
+- \`execute(command: string, args?: string[])\`: Run system commands securely.
+
+### Notifications (\`api.notification\`)
+- \`show(title: string, body: string)\`: Display system notifications.
+
+### Clipboard (\`api.clipboard\`)
+- \`writeText(text: string)\`: Copy text to clipboard.
+- \`readText()\`: Read text from clipboard.
+
+## 📝 Usage Example
+
+\`\`\`typescript
+export async function execute(query: string, api: PluginAPI) {
+  const results = await api.fs.listDir('/some/path');
+  return results.map(r => ({ title: r }));
+}
+\`\`\`
+`;
+
+fs.writeFileSync(path.join(pluginDir, 'README.md'), readme);
 
 console.log('\n✅ Plugin created successfully!\n');
 console.log(`📂 Location: ${pluginDir}`);

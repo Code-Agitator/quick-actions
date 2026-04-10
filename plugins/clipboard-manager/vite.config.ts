@@ -12,19 +12,16 @@ export default defineConfig({
   build: {
     lib: {
       entry: resolve(__dirname, 'src/index.tsx'),
-      name: 'commandRunnerUi',
+      name: 'clipboardManager',
       formats: ['es'],
       fileName: 'index'
     },
     rollupOptions: {
-      // 不要将 react 标记为 external，直接打包进去
-      // external: ['react', 'react-dom'],
-      // output: {
-      //   globals: {
-      //     react: 'React',
-      //     'react-dom': 'ReactDOM'
-      //   }
-      // }
+      // 不要将 react 和 react-dom 标记为 external
+      // 让它们被打包进插件 bundle
+      output: {
+        inlineDynamicImports: true
+      }
     }
   }
 });

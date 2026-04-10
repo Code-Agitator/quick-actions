@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { IoSettingsOutline, IoCubeOutline, IoColorPaletteOutline, IoPowerOutline, IoInformationCircleOutline, IoClose } from 'react-icons/io5';
+import { invoke } from '@tauri-apps/api/core';
+import { IoSettingsOutline, IoCubeOutline, IoColorPaletteOutline, IoPowerOutline, IoInformationCircleOutline, IoClose, IoTrashOutline } from 'react-icons/io5';
+import { usePlugins } from '../hooks/usePlugins';
 
 interface SettingsProps {
   onClose: () => void;
@@ -7,6 +9,7 @@ interface SettingsProps {
 
 export function Settings({ onClose }: SettingsProps) {
   const [activeTab, setActiveTab] = useState('plugins');
+  const { plugins, loading, uninstallPlugin } = usePlugins();
   
   // 模拟设置状态（后续可以连接到实际的状态管理）
   const [settings, setSettings] = useState({
@@ -79,7 +82,7 @@ export function Settings({ onClose }: SettingsProps) {
       {/* Content Area */}
       <div className="flex-1 overflow-y-auto">
         <div className="p-8 max-w-4xl mx-auto">
-          {activeTab === 'plugins' && <PluginsTab />}
+          {activeTab === 'plugins' && <PluginsTab plugins={plugins} loading={loading} onUninstall={uninstallPlugin} />}
           {activeTab === 'appearance' && (
             <AppearanceTab
               theme={settings.theme}
@@ -130,14 +133,13 @@ function NavItem({ active, onClick, icon, label }: NavItemProps) {
 }
 
 // 插件管理标签页
-function PluginsTab() {
-  const plugins = [
-    { id: 'everything-search', name: 'Everything 搜索', version: '1.0.0', enabled: true, description: '通过 Everything 搜索本地文件' },
-    { id: 'calculator', name: '计算器', version: '1.0.0', enabled: true, description: '快速计算数学表达式' },
-    { id: 'command-runner', name: '命令运行器', version: '1.0.0', enabled: true, description: '执行系统命令' },
-    { id: 'file-browser', name: '文件浏览器', version: '1.0.0', enabled: false, description: '浏览和管理文件系统' },
-  ];
+interface PluginsTabProps {
+  plugins: any[];
+  loading: boolean;
+  onUninstall: (id: string) => void;
+}
 
+function PluginsTab({ plugins, loading, onUninstall }: PluginsTabProps) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between mb-4">
@@ -147,33 +149,46 @@ function PluginsTab() {
         </button>
       </div>
 
-      <div className="grid gap-4">
-        {plugins.map((plugin) => (
-          <div
-            key={plugin.id}
-            className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4"
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <h3 className="font-semibold text-gray-800 dark:text-gray-100">{plugin.name}</h3>
-                  <span className="text-xs text-gray-500 dark:text-gray-400">v{plugin.version}</span>
+      {loading ? (
+        <div className="text-center py-8 text-gray-500">加载中...</div>
+      ) : plugins.length === 0 ? (
+        <div className="text-center py-8 text-gray-500">
+          <p>暂无已安装的插件</p>
+          <p className="text-sm mt-2">点击右上角“安装插件”按钮添加新插件</p>
+        </div>
+      ) : (
+        <div className="grid gap-4">
+          {plugins.map((plugin) => (
+            <div
+              key={plugin.id}
+              className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">{plugin.icon || '🔌'}</span>
+                    <h3 className="font-semibold text-gray-800 dark:text-gray-100">{plugin.name}</h3>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">v{plugin.version}</span>
+                  </div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{plugin.description}</p>
                 </div>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{plugin.description}</p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      invoke('log_frontend_message', { level: 'info', message: `User clicked uninstall for plugin: ${plugin.id}` });
+                      onUninstall(plugin.id);
+                    }}
+                    className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                    title="卸载插件"
+                  >
+                    <IoTrashOutline className="text-lg" />
+                  </button>
+                </div>
               </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={plugin.enabled}
-                  onChange={() => console.log(`Toggle plugin: ${plugin.id}`)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-              </label>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

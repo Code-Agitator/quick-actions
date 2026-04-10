@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { emitTo } from '@tauri-apps/api/event';
 import { SearchBar, SearchBarRef } from "./components/SearchBar";
 import { SearchResultList } from "./components/SearchResultList";
 import { DebugPanel } from "./components/DebugPanel";
@@ -18,8 +17,6 @@ function App() {
   const [indexReady, setIndexReady] = useState(false); // 标记索引是否就绪
   const [showSettings, setShowSettings] = useState(false); // 显示设置页面
   const searchBarRef = useRef<SearchBarRef>(null);
-  const keyboardLockTimerRef = useRef<number | null>(null);
-  const isKeyboardLockedRef = useRef(false); // 使用 ref 立即生效
   const { plugins } = usePlugins();
   const { applications } = useApplications();
   const { settings: debugSettings } = useDebug();
@@ -57,19 +54,6 @@ function App() {
     };
 
     const handleFocus = () => {
-      // 键盘锁定：防止窗口显示瞬间的按键触发系统菜单
-      isKeyboardLockedRef.current = true;
-      
-      if (keyboardLockTimerRef.current) {
-        clearTimeout(keyboardLockTimerRef.current);
-      }
-      
-      // 500ms 后允许键盘输入，确保窗口完全稳定
-      // 从插件窗口切换回来需要更长的稳定期
-      keyboardLockTimerRef.current = window.setTimeout(() => {
-        isKeyboardLockedRef.current = false;
-      }, 500);
-      
       focusInput();
     };
 
@@ -91,9 +75,6 @@ function App() {
       window.removeEventListener('contextmenu', handleContextMenu, true);
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('blur', handleBlur);
-      if (keyboardLockTimerRef.current) {
-        clearTimeout(keyboardLockTimerRef.current);
-      }
     };
   }, []);
 
@@ -106,6 +87,20 @@ function App() {
       // 标记索引已就绪，触发重新渲染
       setIndexReady(true);
     }
+  }, [plugins, applications]);
+
+  // 监听插件变化事件（卸载/安装后自动刷新索引）
+  useEffect(() => {
+    const handlePluginsChanged = () => {
+      searchCache.rebuildIndex(plugins, applications);
+      setQuery(''); // 清空搜索框以显示最新列表
+      setSelectedIndex(0);
+    };
+
+    window.addEventListener('plugins-changed', handlePluginsChanged);
+    return () => {
+      window.removeEventListener('plugins-changed', handlePluginsChanged);
+    };
   }, [plugins, applications]);
 
   // 使用缓存搜索（极速）
@@ -125,32 +120,6 @@ function App() {
   // 键盘导航
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // 键盘锁定期间，忽略所有按键，防止触发系统菜单
-      if (isKeyboardLockedRef.current) {
-        if (['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Enter', 'Escape', 'Alt', 'Control', 'Shift', 'Tab', ' '].includes(e.key)) {
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-        }
-        return;
-      }
-      
-      // 阻止所有可能导致系统菜单的按键组合
-      // Alt+Space 或 Alt 键单独按下时特别处理
-      if (e.key === 'Alt' || e.altKey) {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        return;
-      }
-      
-      // 阻止所有可能导致系统菜单的按键（排除 ESC，因为我们需要处理它）
-      if (['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Enter', 'Control', 'Shift', 'Tab', ' '].includes(e.key)) {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-      }
-      
       // 只处理我们关心的键
       if (!['ArrowDown', 'ArrowUp', 'Enter', 'Escape'].includes(e.key)) {
         return;

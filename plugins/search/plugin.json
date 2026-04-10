@@ -1,9 +1,0 @@
-{
-  "id": "search",
-  "name": "网页搜索",
-  "version": "1.0.0",
-  "description": "使用默认浏览器搜索",
-  "icon": "🔍",
-  "keywords": ["search", "搜索", "google"],
-  "entry": "index.js"
-}

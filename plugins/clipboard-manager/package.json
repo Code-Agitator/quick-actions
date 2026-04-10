@@ -1,8 +1,8 @@
 {
-  "name": "@quick-actions/plugin-command-runner-ui",
+  "name": "@quick-actions/plugin-clipboard-manager",
   "version": "1.0.0",
   "type": "module",
-  "description": "A Quick Actions plugin - command-runner-ui",
+  "description": "A Quick Actions plugin - clipboard-manager",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

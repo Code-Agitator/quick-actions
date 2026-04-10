@@ -13,8 +13,11 @@ export function usePlugins() {
     try {
       setLoading(true);
       const pluginList = await invoke<Plugin[]>('get_plugins');
+      const ids = pluginList.map(p => p.id).join(', ');
+      invoke('log_frontend_message', { level: 'info', message: `Loaded ${pluginList.length} plugins: [${ids}]` });
       setPlugins(pluginList);
     } catch (error) {
+      invoke('log_frontend_message', { level: 'error', message: `Failed to load plugins: ${error}` });
       console.error('Failed to load plugins:', error);
     } finally {
       setLoading(false);
@@ -138,6 +141,8 @@ export function usePlugins() {
     try {
       await invoke('uninstall_plugin', { id });
       await loadPlugins();
+      // 触发重新索引
+      window.dispatchEvent(new CustomEvent('plugins-changed'));
     } catch (error) {
       console.error('Failed to uninstall plugin:', error);
       throw error;
