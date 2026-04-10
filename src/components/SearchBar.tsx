@@ -1,5 +1,4 @@
 import { useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
-import { Input } from '@heroui/react';
 import { IoSettingsOutline } from 'react-icons/io5';
 
 export interface SearchBarRef {
@@ -48,37 +47,38 @@ export const SearchBar = forwardRef<SearchBarRef, SearchBarProps>(
 
     return (
       <div className="w-full relative">
-        <Input
-          ref={inputRef}
-          autoFocus
-          type="text"
-          placeholder="搜索插件..."
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="w-full [&_.input-wrapper]:h-14 [&_.input-wrapper]:bg-transparent [&_.input-wrapper]:hover:bg-gray-50/50 [&_.dark_.input-wrapper]:hover:bg-gray-800/30 [&_.input-wrapper]:transition-all [&_.input-wrapper]:border-none [&_.input-wrapper]:shadow-none [&_.input-wrapper]:rounded-none [&_.input]:text-base [&_.input]:placeholder:text-gray-400 [&_.input-wrapper]:pl-4 [&_.input-wrapper]:pr-12 [&_.input-wrapper]:rounded-t-lg [&_.input-wrapper]:focus-within:border-none [&_.input-wrapper]:focus-within:shadow-none [&_.input]:outline-none [&_.input]:focus:outline-none [&_.input]:focus:ring-0 [&_.input-wrapper]:focus-within:ring-0 [&_.input-wrapper]:data-[focus=true]:border-none [&_.input-wrapper]:data-[focus=true]:shadow-none [&_.input-wrapper]:data-[focus=true]:ring-0 [&_.input-wrapper]:after:border-none [&_.input-wrapper]:after:shadow-none [&_.input-wrapper]:after:ring-0"
-        />
-        
-        {/* 设置按钮 - 绝对定位在搜索框右侧 */}
-        {onOpenSettings && (
-          <>
-            {/* 分隔线 */}
-            <div className="absolute right-10 top-1/2 -translate-y-1/2 w-px h-5 bg-gray-200 dark:bg-gray-700" />
-            
-            {/* 按钮 */}
-            <div className="absolute right-1 top-1/2 -translate-y-1/2">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onOpenSettings();
-                }}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-all active:scale-95"
-                title="设置 (Ctrl+,)"
-              >
-                <IoSettingsOutline className="text-xl text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" />
-              </button>
-            </div>
-          </>
-        )}
+        {/* 暗色调搜索框 */}
+        <div className="flex items-center gap-3 px-2">
+          {/* 搜索图标 - 亮色 */}
+          <svg className="w-5 h-5 text-gray-300/80 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          
+          {/* 输入框 - 亮色字体 */}
+          <input
+            ref={inputRef}
+            autoFocus
+            type="text"
+            placeholder="搜索插件和应用..."
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            className="flex-1 bg-transparent text-[17px] font-normal text-gray-100 placeholder-gray-400/60 outline-none border-none py-2 tracking-tight"
+          />
+          
+          {/* 设置按钮 - 暗色调样式 */}
+          {onOpenSettings && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenSettings();
+              }}
+              className="p-1.5 hover:bg-white/10 rounded-lg transition-all duration-150 active:scale-95 flex-shrink-0"
+              title="设置"
+            >
+              <IoSettingsOutline className="w-5 h-5 text-gray-400 hover:text-gray-200 transition-colors" />
+            </button>
+          )}
+        </div>
       </div>
     );
   }

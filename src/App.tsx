@@ -219,17 +219,17 @@ function App() {
   };
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden">
+    <div className="h-screen flex flex-col overflow-hidden bg-transparent">
       {showSettings ? (
         // 设置页面
         <Settings onClose={() => setShowSettings(false)} />
       ) : (
-        // 主界面
+        // 主界面 - Spotlight 风格
         <>
-          {/* 外层容器 - 提供圆角和背景 */}
-          <div className="flex-1 flex flex-col bg-white dark:bg-gray-900 rounded-lg overflow-hidden shadow-2xl">
-            {/* 顶部搜索栏 - 固定在顶部，顶部圆角与窗体融合 */}
-            <div className="flex-shrink-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-100 dark:border-gray-800">
+          {/* 外层容器 - 暗色调毛玻璃风格（无边框无阴影） */}
+          <div className="flex-1 flex flex-col backdrop-blur-3xl overflow-hidden bg-gray-900/75" style={{ borderRadius: '28px' }}>
+            {/* 搜索栏 - 与 Spotlight 一致的极简设计 */}
+            <div className="flex-shrink-0 px-4 pt-3 pb-2">
               <SearchBar 
                 ref={searchBarRef}
                 value={query} 
@@ -238,8 +238,11 @@ function App() {
               />
             </div>
 
+            {/* 分隔线 - 暗色调 */}
+            <div className="mx-4 h-px bg-white/10" />
+
             {/* 内容区域 - 可滚动 */}
-            <div className="flex-1 overflow-y-auto scrollbar-thin p-2">
+            <div className="flex-1 overflow-y-auto scrollbar-thin py-2">
               {/* 搜索结果列表 */}
               <SearchResultList 
                 results={searchResults} 

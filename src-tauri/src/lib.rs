@@ -135,23 +135,48 @@ pub fn run() {
                 ])?)
                 .build(app.handle())?;
 
-            // Windows 平台：在主窗口创建后立即移除系统菜单
+            // Windows 平台:在主窗口创建后立即移除系统菜单并设置 Acrylic 效果和圆角
             #[cfg(windows)]
             {
                 use windows::Win32::UI::WindowsAndMessaging::{
                     GetWindowLongW, SetWindowLongW, GWL_STYLE, WS_SYSMENU
                 };
                 use windows::Win32::Foundation::HWND;
+                use windows::Win32::Graphics::Dwm::{
+                    DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE,
+                    DWM_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND
+                };
                 
                 if let Some(window) = app.get_webview_window("main") {
                     if let Ok(hwnd) = window.hwnd() {
                         let hwnd_value = hwnd.0 as isize;
                         unsafe {
+                            // 移除系统菜单
                             let current_style = GetWindowLongW(HWND(hwnd_value), GWL_STYLE);
                             let new_style = current_style & !WS_SYSMENU.0 as i32;
                             SetWindowLongW(HWND(hwnd_value), GWL_STYLE, new_style);
                             println!("[Tauri] System menu removed from main window");
+                            
+                            // 设置窗口圆角 (DWMWCP_ROUND = 2)
+                            let corner_preference = DWM_WINDOW_CORNER_PREFERENCE(DWMWCP_ROUND.0);
+                            let result = DwmSetWindowAttribute(
+                                HWND(hwnd_value),
+                                DWMWA_WINDOW_CORNER_PREFERENCE,
+                                &corner_preference as *const _ as *const _,
+                                std::mem::size_of::<DWM_WINDOW_CORNER_PREFERENCE>() as u32
+                            );
+                            if result.is_ok() {
+                                println!("[Tauri] Window corner radius set to rounded");
+                            } else {
+                                eprintln!("[Tauri] Failed to set window corner radius");
+                            }
                         }
+                    }
+                    
+                    // 使用 window-vibrancy 设置 Acrylic 毛玻璃效果（暗色调，更高透明度）
+                    match window_vibrancy::apply_acrylic(&window, Some((30, 30, 30, 160))) {
+                        Ok(_) => println!("[Tauri] Dark Acrylic effect applied successfully"),
+                        Err(e) => eprintln!("[Tauri] Failed to apply acrylic: {}", e),
                     }
                 }
             }
@@ -164,12 +189,12 @@ pub fn run() {
             let handle = app.handle().clone();
             let last_toggle = Arc::new(Mutex::new(std::time::Instant::now()));
 
+            // 注册全局快捷键 Ctrl+Space
             if let Err(e) = app.global_shortcut().on_shortcut("Ctrl+Space", move |_app, _shortcut, event| {
                 use tauri_plugin_global_shortcut::ShortcutState;
                 
                 // 只在按键按下时触发，忽略释放事件
                 if event.state() != ShortcutState::Pressed {
-                    eprintln!("[Shortcut] Ignored {:?} event", event.state());
                     return;
                 }
                 
@@ -186,11 +211,6 @@ pub fn run() {
                 }
             }) {
                 eprintln!("Warning: Failed to register shortcut handler: {}", e);
-            }
-
-            if let Err(e) = app.global_shortcut().register("Ctrl+Space") {
-                eprintln!("Warning: Failed to register global shortcut Ctrl+Space: {}", e);
-                eprintln!("You can still use the app, but the global shortcut won't work.");
             }
 
             // 不设置焦点自动隐藏，改为在 open_plugin_window 中显式隐藏主窗口

@@ -23,6 +23,7 @@
         "skipTaskbar": true,
         "visible": true,
         "focus": false,
+        "shadow":false,
         "url": "index.html"
       }
     ],

@@ -21,6 +21,7 @@ tauri-build = { version = "2", features = [] }
 windows = { version = "0.52", features = [
     "Win32_Foundation",
     "Win32_UI_WindowsAndMessaging",
+    "Win32_Graphics_Dwm",
 ] }
 
 [dependencies]
@@ -41,4 +42,5 @@ notify = "6"
 pinyin = "0.10"
 reqwest = { version = "0.11", features = ["blocking", "json"] }
 urlencoding = "2.1"
+window-vibrancy = "0.6"
 
