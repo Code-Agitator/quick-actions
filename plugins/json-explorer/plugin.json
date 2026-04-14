@@ -1,0 +1,16 @@
+{
+  "id": "json-explorer",
+  "name": "JSON Explorer",
+  "version": "1.0.0",
+  "description": "Modern JSON viewer with formatting, path access, and tree visualization",
+  "author": "Quick Actions Team",
+  "entry": "dist/index.js",
+  "icon": "📋",
+  "keywords": [
+    "json",
+    "explorer",
+    "viewer",
+    "formatter",
+    "tree"
+  ]
+}

@@ -11,6 +11,22 @@ export function PluginApp() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // 确保窗口可拖拽
+  useEffect(() => {
+    const ensureDraggable = async () => {
+      try {
+        const currentWindow = getCurrentWindow();
+        // 确保窗口 resizable（拖拽必需）
+        await currentWindow.setResizable(true);
+        console.log('[PluginApp] Window set to resizable');
+      } catch (err) {
+        console.error('[PluginApp] Failed to set resizable:', err);
+      }
+    };
+    
+    ensureDraggable();
+  }, []);
+
   // 从 sessionStorage 或 URL 参数获取插件信息
   const parsePluginInfo = useCallback(() => {
     // 首先尝试从 sessionStorage 获取（窗口池方案）
@@ -207,7 +223,7 @@ export function PluginApp() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900">
+      <div className="h-screen flex items-center justify-center ios-frosted" data-tauri-drag-region>
         <div className="text-white text-lg">加载中...</div>
       </div>
     );
@@ -215,7 +231,7 @@ export function PluginApp() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900">
+      <div className="h-screen flex items-center justify-center ios-frosted" data-tauri-drag-region>
         <div className="text-red-400 text-lg">
           <div className="mb-2">❌ 加载失败</div>
           <div className="text-sm text-gray-400">{error}</div>
@@ -226,14 +242,14 @@ export function PluginApp() {
 
   if (!selectedPlugin) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900">
+      <div className="h-screen flex items-center justify-center ios-frosted" data-tauri-drag-region>
         <div className="text-white text-lg">等待插件加载...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-900">
+    <div className="h-screen ios-frosted" data-tauri-drag-region>
       <PluginUI 
         plugin={selectedPlugin} 
         onClose={handleClose}

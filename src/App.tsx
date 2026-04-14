@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { SearchBar, SearchBarRef } from "./components/SearchBar";
 import { SearchResultList } from "./components/SearchResultList";
-import { DebugPanel } from "./components/DebugPanel";
 import { Settings } from "./components/Settings";
 import { usePlugins } from "./hooks/usePlugins";
 import { useApplications } from "./hooks/useApplications";
@@ -16,9 +15,10 @@ function App() {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [indexReady, setIndexReady] = useState(false); // 标记索引是否就绪
   const [showSettings, setShowSettings] = useState(false); // 显示设置页面
+  const [isExpanded, setIsExpanded] = useState(false); // 窗口是否展开
   const searchBarRef = useRef<SearchBarRef>(null);
   const { plugins } = usePlugins();
-  const { applications } = useApplications();
+  const { applications, reload: reloadApplications } = useApplications();
   const { settings: debugSettings } = useDebug();
 
   // 同步 debug 设置到 debugLogger
@@ -26,11 +26,43 @@ function App() {
     initDebug(debugSettings);
   }, [debugSettings]);
 
+  // 监听 query 变化，动态调整窗口高度
+  useEffect(() => {
+    const shouldExpand = query.length > 0;
+    const newHeight = shouldExpand ? 480 : 64;
+    
+    console.log('[App] Query changed:', JSON.stringify(query), '-> expanding:', shouldExpand, 'newHeight:', newHeight);
+    
+    // 先更新状态
+    setIsExpanded(shouldExpand);
+    
+    // 通过 Rust 后端调整窗口大小
+    invoke('set_main_window_size', { height: newHeight })
+      .then(() => console.log('[App] Window resized to height:', newHeight))
+      .catch(err => console.error('[App] Failed to resize:', err));
+  }, [query]);
+
+  // 监听 showSettings 变化，重置窗口大小
+  useEffect(() => {
+    if (!showSettings) {
+      // 回到搜索页时，根据 query 状态设置窗口高度
+      const newHeight = query.length > 0 ? 480 : 64;
+      invoke('set_main_window_size', { height: newHeight })
+        .then(() => console.log('[App] Settings closed, window resized to:', newHeight))
+        .catch(err => console.error('[App] Failed to resize after settings close:', err));
+    } else {
+      // 进入设置页时，设置为固定高度
+      invoke('set_main_window_size', { height: 600 })
+        .then(() => console.log('[App] Settings opened, window resized to 600'))
+        .catch(err => console.error('[App] Failed to resize for settings:', err));
+    }
+  }, [showSettings, query]);
+
   useEffect(() => {
     // Escape 键已在键盘导航中处理
   }, []);
 
-  // 监听窗口焦点事件，自动聚焦搜索框
+  // 监听窗口焦点事件，自动聚焦搜索框并重置到搜索页
   useEffect(() => {
     // 禁用右键菜单 - 在最早期阻止
     const handleContextMenu = (e: Event) => {
@@ -54,12 +86,27 @@ function App() {
     };
 
     const handleFocus = () => {
+      // 窗口重新获得焦点时，确保聚焦搜索框
       focusInput();
     };
 
     const handleBlur = () => {
       // Window lost focus
     };
+
+    // 【关键优化】窗口隐藏时立即重置状态，避免下次呼出时闪现设置页
+    const resetSearchState = () => {
+      console.log('[App] Window hidden, resetting search state');
+      if (showSettings) {
+        setShowSettings(false);
+      }
+      setQuery('');
+      setSelectedIndex(0);
+      setIsExpanded(false);
+    };
+
+    // 暴露给 Rust 调用的全局函数
+    (window as any).__resetSearch = resetSearchState;
 
     // 使用 capture 阶段确保最早拦截
     document.addEventListener('contextmenu', handleContextMenu, true);
@@ -75,8 +122,10 @@ function App() {
       window.removeEventListener('contextmenu', handleContextMenu, true);
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('blur', handleBlur);
+      // 清理全局函数
+      delete (window as any).__resetSearch;
     };
-  }, []);
+  }, [showSettings]);
 
   // 当插件或应用加载完成时，重建索引
   useEffect(() => {
@@ -125,6 +174,9 @@ function App() {
         return;
       }
       
+      // 阻止默认行为，防止光标移动
+      e.preventDefault();
+      
       switch (e.key) {
         case 'ArrowDown':
           setSelectedIndex(prev => 
@@ -166,6 +218,11 @@ function App() {
           result
             .then(() => console.log('[Main Window] hide_window succeeded'))
             .catch(err => console.error('[Main Window] hide_window failed:', err));
+          break;
+        case 'F5':
+          e.preventDefault();
+          console.log('[Main Window] F5 pressed, reloading applications...');
+          reloadApplications();
           break;
       }
     };
@@ -219,17 +276,26 @@ function App() {
   };
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-transparent">
+    <div 
+      className="h-screen flex flex-col overflow-hidden bg-transparent" 
+      style={{ 
+        WebkitFontSmoothing: 'antialiased',
+        MozOsxFontSmoothing: 'grayscale'
+      }}
+      data-tauri-drag-region
+    >
       {showSettings ? (
         // 设置页面
         <Settings onClose={() => setShowSettings(false)} />
       ) : (
         // 主界面 - Spotlight 风格
         <>
-          {/* 外层容器 - 暗色调毛玻璃风格（无边框无阴影） */}
-          <div className="flex-1 flex flex-col backdrop-blur-3xl overflow-hidden bg-gray-900/75" style={{ borderRadius: '28px' }}>
+          {/* 外层容器 - iOS 毛玻璃质感，确保背景一致 */}
+          <div 
+            className="flex-1 flex flex-col overflow-hidden ios-frosted h-full"
+          >
             {/* 搜索栏 - 与 Spotlight 一致的极简设计 */}
-            <div className="flex-shrink-0 px-4 pt-3 pb-2">
+            <div className="flex-shrink-0 px-4 flex items-center" style={{ height: '64px' }}>
               <SearchBar 
                 ref={searchBarRef}
                 value={query} 
@@ -238,23 +304,24 @@ function App() {
               />
             </div>
 
-            {/* 分隔线 - 暗色调 */}
-            <div className="mx-4 h-px bg-white/10" />
+            {/* 分隔线 - 仅在展开时显示 */}
+            {isExpanded && (
+              <div className="mx-4 h-px bg-white/10" />
+            )}
 
-            {/* 内容区域 - 可滚动 */}
-            <div className="flex-1 overflow-y-auto scrollbar-thin py-2">
-              {/* 搜索结果列表 */}
-              <SearchResultList 
-                results={searchResults} 
-                onExecute={handleExecute}
-                selectedIndex={selectedIndex}
-                onSelectIndex={setSelectedIndex}
-              />
-            </div>
+            {/* 内容区域 - 仅在展开时显示 */}
+            {isExpanded && (
+              <div className="flex-1 overflow-y-auto scrollbar-thin py-1">
+                {/* 搜索结果列表 */}
+                <SearchResultList 
+                  results={searchResults} 
+                  onExecute={handleExecute}
+                  selectedIndex={selectedIndex}
+                  onSelectIndex={setSelectedIndex}
+                />
+              </div>
+            )}
           </div>
-          
-          {/* Debug Panel - 只在开发环境显示 */}
-          {import.meta.env.DEV && <DebugPanel />}
         </>
       )}
     </div>

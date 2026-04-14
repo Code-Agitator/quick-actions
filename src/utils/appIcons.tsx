@@ -86,6 +86,7 @@ export const APP_ICON_MAP: AppIconConfig[] = [
   
   // 开发工具
   { keywords: ['code', 'vscode', 'visual studio'], icon: Code, color: '#007ACC' },
+  { keywords: ['intellij', 'idea', 'jetbrains'], icon: Code, color: '#FFFFFF' },
   { keywords: ['webstorm'], icon: SiWebstorm, color: '#00C6FF' },
   { keywords: ['sublime'], icon: SiSublimetext, color: '#FF9800' },
   { keywords: ['notepad'], icon: FileText, color: '#4CAF50' },

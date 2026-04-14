@@ -22,6 +22,10 @@ windows = { version = "0.52", features = [
     "Win32_Foundation",
     "Win32_UI_WindowsAndMessaging",
     "Win32_Graphics_Dwm",
+    "Win32_UI_Shell",
+    "Win32_Graphics_Gdi",
+    "Win32_System_Com",
+    "Win32_System_Ole",
 ] }
 
 [dependencies]
@@ -43,4 +47,9 @@ pinyin = "0.10"
 reqwest = { version = "0.11", features = ["blocking", "json"] }
 urlencoding = "2.1"
 window-vibrancy = "0.6"
+base64 = "0.21"
+scopeguard = "1.2"
+winapi = { version = "0.3.9", features = ["shellapi", "commctrl", "wingdi", "winuser", "winbase", "windef", "winnt", "wincon", "fileapi", "minwindef", "shobjidl", "objbase", "objidl", "combaseapi", "unknwnbase", "dwmapi"] }
+image = "0.24"
+windows = { version = "0.52", features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation"] }
 

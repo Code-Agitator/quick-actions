@@ -1,7 +1,7 @@
 use crate::plugin_manager::{PluginManager, PluginMetadata, PluginResult};
 use std::sync::Mutex;
 use std::path::PathBuf;
-use tauri::{State, WebviewWindow, Emitter, Manager, WebviewWindowBuilder};
+use tauri::{State, WebviewWindow, Emitter, Manager, Size, LogicalSize, Position, LogicalPosition};
 use std::collections::VecDeque;
 use pinyin::ToPinyin;
 
@@ -104,16 +104,313 @@ fn is_subsequence(query: &str, target: &str) -> bool {
     true
 }
 
-/// 获取应用程序图标（Base64 编码）
+/// 解析快捷方式文件，返回实际的 EXE 路径
+/// 使用 PowerShell 解析 .lnk 文件（单个）
+#[cfg(target_os = "windows")]
+fn resolve_lnk_target(lnk_path: &str) -> Option<String> {
+    use std::process::Command;
+    use std::time::Instant;
+    
+    let start = Instant::now();
+    log::debug!("[Icon] Resolving LNK: {}", lnk_path);
+    
+    // 使用 PowerShell 解析快捷方式（隐藏窗口）
+    let ps_command = format!(
+        r#"$shell = New-Object -ComObject WScript.Shell; $shortcut = $shell.CreateShortcut('{}'); $shortcut.TargetPath"#,
+        lnk_path.replace('\\', "\\\\")
+    );
+    
+    let output = match Command::new("powershell")
+        .args([
+            "-WindowStyle", "Hidden",  // 【关键修复】隐藏 PowerShell 窗口
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command", 
+            &ps_command
+        ])
+        .output() {
+            Ok(out) => out,
+            Err(e) => {
+                log::warn!("[Icon] Failed to run PowerShell for {}: {}", lnk_path, e);
+                return None;
+            }
+        };
+    
+    let elapsed = start.elapsed();
+    log::debug!("[Icon] PowerShell call took {:?}", elapsed);
+    
+    if output.status.success() {
+        let target = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if !target.is_empty() && std::path::Path::new(&target).exists() {
+            log::debug!("[Icon] Resolved to: {}", target);
+            Some(target)
+        } else {
+            log::debug!("[Icon] Target not found or invalid: {}", target);
+            None
+        }
+    } else {
+        log::warn!("[Icon] PowerShell failed for {}", lnk_path);
+        None
+    }
+}
+
+/// 【性能优化】批量解析多个 .lnk 文件，只启动一次 PowerShell
+#[cfg(target_os = "windows")]
+fn batch_resolve_lnk_targets(lnk_paths: &[String]) -> Vec<Option<String>> {
+    use std::process::Command;
+    use std::time::Instant;
+    
+    if lnk_paths.is_empty() {
+        return vec![];
+    }
+    
+    let start = Instant::now();
+    log::info!("[Icon Batch] Starting batch resolution for {} LNK files", lnk_paths.len());
+    
+    // 构建 PowerShell 脚本，批量处理所有快捷方式
+    let mut ps_script = String::from("$shell = New-Object -ComObject WScript.Shell;\n");
+    ps_script.push_str("$results = @();\n");
+    
+    for (i, lnk_path) in lnk_paths.iter().enumerate() {
+        let escaped_path = lnk_path.replace('\\', "\\\\");
+        ps_script.push_str(&format!(
+            "try {{ \n  $shortcut = $shell.CreateShortcut('{}'); \n  $target = $shortcut.TargetPath; \n  if (Test-Path $target) {{ $results += $target }} else {{ $results += '' }} \n}} catch {{ $results += '' }}\n",
+            escaped_path
+        ));
+        
+        // 每 50 个输出一次进度
+        if (i + 1) % 50 == 0 {
+            log::debug!("[Icon Batch] Built script for {}/{} files", i + 1, lnk_paths.len());
+        }
+    }
+    
+    ps_script.push_str("$results -join '|SEPARATOR|';\n");
+    
+    // 执行 PowerShell 脚本（隐藏窗口）
+    let output = match Command::new("powershell")
+        .args([
+            "-WindowStyle", "Hidden",
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy", "Bypass",
+            "-Command",
+            &ps_script
+        ])
+        .output() {
+            Ok(out) => out,
+            Err(e) => {
+                log::error!("[Icon Batch] Failed to run PowerShell batch: {}", e);
+                return vec![None; lnk_paths.len()];
+            }
+        };
+    
+    let elapsed = start.elapsed();
+    log::info!("[Icon Batch] Batch resolution completed in {:?}", elapsed);
+    
+    if !output.status.success() {
+        log::error!("[Icon Batch] PowerShell batch failed: {}", String::from_utf8_lossy(&output.stderr));
+        return vec![None; lnk_paths.len()];
+    }
+    
+    // 解析结果
+    let result_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let targets: Vec<&str> = result_str.split("|SEPARATOR|").collect();
+    
+    let mut results = Vec::with_capacity(lnk_paths.len());
+    for (i, target) in targets.iter().enumerate() {
+        let target = target.trim();
+        if !target.is_empty() && std::path::Path::new(target).exists() {
+            results.push(Some(target.to_string()));
+        } else {
+            results.push(None);
+        }
+        
+        if (i + 1) % 50 == 0 {
+            log::debug!("[Icon Batch] Parsed {}/{} results", i + 1, targets.len());
+        }
+    }
+    
+    log::info!("[Icon Batch] Successfully resolved {}/{} targets", 
+               results.iter().filter(|r| r.is_some()).count(), 
+               results.len());
+    
+    results
+}
+
+#[cfg(not(target_os = "windows"))]
+fn resolve_lnk_target(_lnk_path: &str) -> Option<String> {
+    None
+}
 /// 
-/// 注意：提取系统原生图标是一个复杂的任务，需要：
-/// 1. 调用 Windows API (SHGetFileInfoW) 获取 HICON
-/// 2. 将 HICON 转换为位图
-/// 3. 将位图编码为 PNG
-/// 4. 将 PNG 转换为 Base64
-/// 
-/// 由于实现复杂度高且需要大量依赖，目前采用前端 emoji 映射方案。
-/// 未来可以考虑使用专门的图标提取服务或缓存机制。
+/// 使用 Windows API SHGetFileInfo 提取图标并转换为 PNG Base64
+#[cfg(target_os = "windows")]
+fn get_app_icon(path: &str) -> Option<String> {
+    use std::os::windows::ffi::OsStrExt;
+    use std::ffi::OsStr;
+    use std::time::Instant;
+    use winapi::um::shellapi::{SHGetFileInfoW, SHGFI_ICON, SHGFI_LARGEICON, SHFILEINFOW};
+    use winapi::um::winuser::{DestroyIcon, GetIconInfo};
+    use winapi::um::wingdi::{DeleteObject, DeleteDC, BITMAPINFO, BITMAPINFOHEADER, 
+                             BI_RGB, DIB_RGB_COLORS, BITMAP, CreateCompatibleDC,
+                             SelectObject, GetDIBits, GetObjectW};
+    use base64::{Engine as _, engine::general_purpose};
+
+    let start = Instant::now();
+    
+    // 1. 检查缓存
+    let file_hash = compute_file_hash(path);
+    if let Some(cached_icon) = load_icon_from_cache(&file_hash) {
+        log::debug!("[Icon] Cache hit for {}", path);
+        return Some(cached_icon);
+    }
+    
+    log::debug!("[Icon] Cache miss, extracting from: {}", path);
+
+    // 将路径转换为 UTF-16
+    let wide_path: Vec<u16> = OsStr::new(path)
+        .encode_wide()
+        .chain(Some(0))
+        .collect();
+
+    let mut shfi: SHFILEINFOW = unsafe { std::mem::zeroed() };
+    
+    // 获取大图标（32x32 或 48x48）
+    let result = unsafe {
+        SHGetFileInfoW(
+            wide_path.as_ptr(),
+            0,
+            &mut shfi,
+            std::mem::size_of::<SHFILEINFOW>() as u32,
+            SHGFI_ICON | SHGFI_LARGEICON,
+        )
+    };
+
+    if result == 0 || shfi.hIcon.is_null() {
+        log::debug!("[Icon] SHGetFileInfo failed for {}", path);
+        return None;
+    }
+    log::debug!("[Icon] SHGetFileInfo succeeded");
+
+    // 从 HICON 提取图标信息
+    let mut icon_info = unsafe { std::mem::zeroed() };
+    if unsafe { GetIconInfo(shfi.hIcon, &mut icon_info) } == 0 {
+        unsafe { DestroyIcon(shfi.hIcon) };
+        return None;
+    }
+
+    // 获取位图信息
+    let hbitmap = icon_info.hbmColor;
+    if hbitmap.is_null() {
+        unsafe {
+            if !icon_info.hbmMask.is_null() {
+                DeleteObject(icon_info.hbmMask as _);
+            }
+            DestroyIcon(shfi.hIcon);
+        }
+        return None;
+    }
+
+    // 获取位图尺寸
+    let mut bitmap: BITMAP = unsafe { std::mem::zeroed() };
+    if unsafe { GetObjectW(hbitmap as _, std::mem::size_of::<BITMAP>() as i32, &mut bitmap as *mut _ as *mut _) } == 0 {
+        unsafe {
+            DeleteObject(icon_info.hbmMask as _);
+            DeleteObject(hbitmap as _);
+            DestroyIcon(shfi.hIcon);
+        }
+        return None;
+    }
+
+    let width = bitmap.bmWidth as u32;
+    let height = bitmap.bmHeight as u32;
+
+    // 创建兼容 DC
+    let hdc = unsafe { CreateCompatibleDC(std::ptr::null_mut()) };
+    if hdc.is_null() {
+        unsafe {
+            DeleteObject(icon_info.hbmMask as _);
+            DeleteObject(hbitmap as _);
+            DestroyIcon(shfi.hIcon);
+        }
+        return None;
+    }
+
+    let old_bitmap = unsafe { SelectObject(hdc, hbitmap as _) };
+
+    // 准备 BITMAPINFO
+    let mut bmi: BITMAPINFO = unsafe { std::mem::zeroed() };
+    bmi.bmiHeader.biSize = std::mem::size_of::<BITMAPINFOHEADER>() as u32;
+    bmi.bmiHeader.biWidth = width as i32;
+    bmi.bmiHeader.biHeight = -(height as i32); // 负数表示自上而下的 DIB
+    bmi.bmiHeader.biPlanes = 1;
+    bmi.bmiHeader.biBitCount = 32;
+    bmi.bmiHeader.biCompression = BI_RGB;
+
+    // 分配像素缓冲区
+    let pixel_count = (width * height) as usize;
+    let mut pixels: Vec<u8> = vec![0; pixel_count * 4];
+
+    // 获取像素数据
+    let result = unsafe {
+        GetDIBits(
+            hdc,
+            hbitmap as _,
+            0,
+            height as u32,
+            pixels.as_mut_ptr() as *mut _,
+            &mut bmi,
+            DIB_RGB_COLORS,
+        )
+    };
+
+    // 恢复并清理 GDI 对象
+    unsafe {
+        SelectObject(hdc, old_bitmap);
+        DeleteDC(hdc);
+        DeleteObject(icon_info.hbmMask as _);
+        DeleteObject(hbitmap as _);
+        DestroyIcon(shfi.hIcon);
+    }
+
+    if result == 0 {
+        return None;
+    }
+
+    // 使用 image crate 创建 RGBA 图像并编码为 PNG
+    use image::{RgbaImage, Rgba};
+    
+    log::debug!("[Icon] Encoding {}x{} image to PNG", width, height);
+    let mut img = RgbaImage::new(width, height);
+    for y in 0..height {
+        for x in 0..width {
+            let idx = ((y * width + x) * 4) as usize;
+            let b = pixels[idx];
+            let g = pixels[idx + 1];
+            let r = pixels[idx + 2];
+            let a = pixels[idx + 3];
+            img.put_pixel(x, y, Rgba([r, g, b, a]));
+        }
+    }
+
+    // 编码为 PNG
+    let mut png_bytes: Vec<u8> = Vec::new();
+    if let Err(e) = img.write_to(&mut std::io::Cursor::new(&mut png_bytes), image::ImageOutputFormat::Png) {
+        log::warn!("[Icon] PNG encoding failed: {}", e);
+        return None;
+    }
+
+    // 转换为 Base64
+    let base64_str = format!("data:image/png;base64,{}", general_purpose::STANDARD.encode(&png_bytes));
+    
+    // 保存到缓存
+    save_icon_to_cache(&file_hash, &base64_str);
+    
+    let elapsed = start.elapsed();
+    log::debug!("[Icon] Icon extraction completed in {:?}, size: {} bytes", elapsed, base64_str.len());
+    Some(base64_str)
+}
+
+#[cfg(not(target_os = "windows"))]
 fn get_app_icon(_path: &str) -> Option<String> {
     None
 }
@@ -194,6 +491,11 @@ pub fn open_plugin_window(
     
     eprintln!("[Window Pool] Configuring window: {}", window_label);
     
+    // 确保窗口可调整大小（拖拽必需）
+    if let Err(e) = window.set_resizable(true) {
+        eprintln!("[Window Pool] Warning: Failed to set resizable: {}", e);
+    }
+    
     // 使用 sessionStorage 持久化插件信息（reload 后仍然可用）
     let plugin_info_js = format!(
         "sessionStorage.setItem('__PLUGIN_ID__', '{}'); \
@@ -258,6 +560,26 @@ pub fn close_all_plugin_windows(
 
 #[tauri::command]
 pub fn show_window(window: WebviewWindow) -> Result<(), String> {
+    eprintln!("[Window Manager] show_window called on: {}", window.label());
+    
+    // 【关键】强制设置 WebView 背景为透明，防止出现默认灰色背景
+    let _ = window.eval(r#"
+        (function() {
+            const style = document.createElement('style');
+            style.textContent = `
+                html, body { 
+                    background: transparent !important; 
+                    background-color: transparent !important;
+                }
+                #root { 
+                    background: transparent !important; 
+                    background-color: transparent !important;
+                }
+            `;
+            document.head.appendChild(style);
+        })();
+    "#);
+    
     // Windows 平台：移除系统菜单，防止 Alt+Space 弹出
     #[cfg(windows)]
     {
@@ -276,6 +598,37 @@ pub fn show_window(window: WebviewWindow) -> Result<(), String> {
                 // 移除 WS_SYSMENU 样式（系统菜单）
                 let new_style = current_style & !WS_SYSMENU.0 as i32;
                 SetWindowLongW(HWND(hwnd_value), GWL_STYLE, new_style);
+            }
+        }
+    }
+    
+    // 如果是主窗口，设置位置（屏幕上方居中）和初始高度
+    if window.label() == "main" {
+        eprintln!("[Window Manager] Setting main window position to top-center");
+        
+        // 获取主显示器尺寸
+        if let Ok(monitor) = window.current_monitor() {
+            if let Some(monitor) = monitor {
+                let monitor_size = monitor.size();
+                let window_width = 780.0;
+                let window_height = 64.0;
+                
+                // 水平居中，垂直位置在屏幕顶部 15% 处
+                let x = (monitor_size.width as f64 - window_width) / 2.0;
+                let y = (monitor_size.height as f64) * 0.15;
+                
+                eprintln!("[Window Manager] Monitor: {}x{}, Position: ({:.0}, {:.0})", 
+                    monitor_size.width, monitor_size.height, x, y);
+                
+                // 设置窗口位置
+                if let Err(e) = window.set_position(Position::Logical(LogicalPosition { x, y })) {
+                    eprintln!("[Window Manager] Failed to set position: {}", e);
+                }
+                
+                // 重置为初始高度
+                if let Err(e) = window.set_size(Size::Logical(LogicalSize { width: window_width, height: window_height })) {
+                    eprintln!("[Window Manager] Failed to reset window size: {}", e);
+                }
             }
         }
     }
@@ -330,6 +683,11 @@ pub fn hide_window(window: WebviewWindow, app: tauri::AppHandle) -> Result<(), S
     
     let is_plugin = window.label().starts_with("plugin-");
     
+    // 如果是主窗口，清空搜索框状态
+    if window.label() == "main" {
+        let _ = window.eval("window.__resetSearch && window.__resetSearch();");
+    }
+    
     window.hide().map_err(|e| e.to_string())?;
     eprintln!("[Window Manager] Window hidden");
     
@@ -365,6 +723,52 @@ pub fn toggle_window(window: WebviewWindow, app: tauri::AppHandle) -> Result<(),
         }
         
         Ok(())
+    }
+}
+
+/// 设置主窗口大小
+#[tauri::command]
+pub fn set_main_window_size(height: u32, window: WebviewWindow) -> Result<(), String> {
+    eprintln!("[Window Manager] === SET WINDOW SIZE REQUEST ===");
+    eprintln!("[Window Manager] Window label: {}", window.label());
+    eprintln!("[Window Manager] Requested height: {}px", height);
+    
+    // 检查窗口是否可见
+    match window.is_visible() {
+        Ok(visible) => eprintln!("[Window Manager] Window visible: {}", visible),
+        Err(e) => eprintln!("[Window Manager] Could not check visibility: {}", e),
+    }
+    
+    // 获取当前大小
+    if let Ok(current_size) = window.outer_size() {
+        eprintln!("[Window Manager] Current size: {}x{}", current_size.width, current_size.height);
+    }
+    
+    // 根据高度决定是否允许调整窗口大小
+    // 64px 为未展开状态，禁止调整大小
+    let resizable = height > 64;
+    if let Err(e) = window.set_resizable(resizable) {
+        eprintln!("[Window Manager] Warning: Failed to set resizable to {}: {}", resizable, e);
+    } else {
+        eprintln!("[Window Manager] Window resizable set to: {}", resizable);
+    }
+    
+    // 设置新大小
+    let new_size = Size::Logical(LogicalSize { width: 780.0, height: height as f64 });
+    match window.set_size(new_size) {
+        Ok(_) => {
+            eprintln!("[Window Manager] ✓ Window size set successfully");
+            // 验证新大小
+            std::thread::sleep(std::time::Duration::from_millis(10));
+            if let Ok(new_size_check) = window.outer_size() {
+                eprintln!("[Window Manager] Verified size: {}x{}", new_size_check.width, new_size_check.height);
+            }
+            Ok(())
+        },
+        Err(e) => {
+            eprintln!("[Window Manager] ✗ Failed to set size: {}", e);
+            Err(e.to_string())
+        }
     }
 }
 
@@ -633,9 +1037,122 @@ pub struct StartMenuApp {
     pub icon: Option<String>,
 }
 
+/// 图标缓存目录（位于用户数据目录下，避免权限问题）
+fn get_icon_cache_dir() -> Result<std::path::PathBuf, String> {
+    // 【关键修复】使用用户数据目录而非安装目录，避免权限问题
+    let cache_dir = if let Ok(local_appdata) = std::env::var("LOCALAPPDATA") {
+        // Windows: %LOCALAPPDATA%\quick-actions\icon-cache
+        std::path::PathBuf::from(local_appdata).join("quick-actions").join("icon-cache")
+    } else if let Ok(appdata) = std::env::var("APPDATA") {
+        // Fallback: %APPDATA%\quick-actions\icon-cache
+        std::path::PathBuf::from(appdata).join("quick-actions").join("icon-cache")
+    } else {
+        // 最后的备选：安装目录（可能会有权限问题）
+        let exe_path = std::env::current_exe().map_err(|e| {
+            log::error!("[Icon Cache] Failed to get current exe path: {}", e);
+            e.to_string()
+        })?;
+        
+        let install_dir = exe_path.parent().ok_or_else(|| {
+            let err = "Failed to get install directory".to_string();
+            log::error!("[Icon Cache] {}", err);
+            err
+        })?;
+        
+        install_dir.join("icon-cache")
+    };
+    
+    log::debug!("[Icon Cache] Cache directory path: {:?}", cache_dir);
+    
+    // 创建目录（如果不存在）
+    match std::fs::create_dir_all(&cache_dir) {
+        Ok(_) => {
+            log::info!("[Icon Cache] ✓ Cache directory ready: {:?}", cache_dir);
+            Ok(cache_dir)
+        }
+        Err(e) => {
+            log::error!("[Icon Cache] ✗ Failed to create cache directory {:?}: {}", cache_dir, e);
+            Err(e.to_string())
+        }
+    }
+}
+
+/// 从缓存加载图标
+fn load_icon_from_cache(file_hash: &str) -> Option<String> {
+    let cache_dir = get_icon_cache_dir().ok()?;
+    let cache_file = cache_dir.join(format!("{}.png", file_hash));
+    
+    if cache_file.exists() {
+        match std::fs::read(&cache_file) {
+            Ok(png_data) => {
+                use base64::{Engine as _, engine::general_purpose};
+                let base64_str = format!("data:image/png;base64,{}", general_purpose::STANDARD.encode(&png_data));
+                log::debug!("[Icon Cache] Hit for {}", file_hash);
+                Some(base64_str)
+            }
+            Err(e) => {
+                log::warn!("[Icon Cache] Failed to read cache file: {}", e);
+                None
+            }
+        }
+    } else {
+        None
+    }
+}
+
+/// 保存图标到缓存
+fn save_icon_to_cache(file_hash: &str, base64_data: &str) {
+    match get_icon_cache_dir() {
+        Ok(cache_dir) => {
+            // 移除 "data:image/png;base64," 前缀
+            if let Some(png_data) = base64_data.strip_prefix("data:image/png;base64,") {
+                use base64::{Engine as _, engine::general_purpose};
+                if let Ok(png_bytes) = general_purpose::STANDARD.decode(png_data) {
+                    let cache_file = cache_dir.join(format!("{}.png", file_hash));
+                    let cache_path = cache_file.display().to_string();
+                    
+                    log::debug!("[Icon Cache] Attempting to save to: {}", cache_path);
+                    
+                    match std::fs::write(&cache_file, &png_bytes) {
+                        Ok(_) => {
+                            log::info!("[Icon Cache] ✓ Saved {} ({} bytes) to: {}", 
+                                      file_hash, png_bytes.len(), cache_path);
+                        }
+                        Err(e) => {
+                            log::error!("[Icon Cache] ✗ Failed to write cache file: {}\n  Path: {}\n  Error: {}", 
+                                       e, cache_path, e);
+                        }
+                    }
+                } else {
+                    log::warn!("[Icon Cache] Failed to decode base64 data for hash: {}", file_hash);
+                }
+            } else {
+                log::warn!("[Icon Cache] Invalid base64 format for hash: {}", file_hash);
+            }
+        }
+        Err(e) => {
+            log::error!("[Icon Cache] Failed to get cache directory: {}", e);
+        }
+    }
+}
+
+/// 计算文件路径的哈希值（用于缓存键）
+fn compute_file_hash(path: &str) -> String {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    
+    let mut hasher = DefaultHasher::new();
+    path.hash(&mut hasher);
+    format!("{:x}", hasher.finish())
+}
+
 #[tauri::command]
-pub fn get_start_menu_apps() -> Result<Vec<StartMenuApp>, String> {
+pub fn get_start_menu_apps(app: tauri::AppHandle) -> Result<Vec<StartMenuApp>, String> {
     use std::fs;
+    use std::time::Instant;
+    
+    let total_start = Instant::now();
+    log::info!("[Icon] === Starting application scan ===");
     
     let mut apps = Vec::new();
     
@@ -646,26 +1163,27 @@ pub fn get_start_menu_apps() -> Result<Vec<StartMenuApp>, String> {
         "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs".to_string(),
     ];
     
-    // 递归扫描函数
-    fn scan_directory(path: &std::path::Path, apps: &mut Vec<StartMenuApp>) {
+    // 递归扫描函数（快速模式：不提取图标）
+    fn scan_directory_fast(path: &std::path::Path, apps: &mut Vec<StartMenuApp>) {
         if let Ok(entries) = fs::read_dir(path) {
             for entry in entries.flatten() {
                 let entry_path = entry.path();
                 
                 if entry_path.is_dir() {
                     // 递归扫描子目录
-                    scan_directory(&entry_path, apps);
+                    scan_directory_fast(&entry_path, apps);
                 } else if entry_path.extension().map_or(false, |ext| ext == "lnk") {
                     // 处理 .lnk 文件
                     if let Some(name) = entry_path.file_stem() {
                         let name_str = name.to_string_lossy().to_string();
-                        let icon = get_app_icon(&entry_path.display().to_string());
+                        let lnk_path = entry_path.display().to_string();
+                        
                         apps.push(StartMenuApp {
                             name: name_str.clone(),
-                            path: entry_path.display().to_string(),
+                            path: lnk_path,
                             executable: name_str,
                             description: None,
-                            icon,
+                            icon: None, // 先返回 None，后台异步加载
                         });
                     }
                 }
@@ -673,13 +1191,62 @@ pub fn get_start_menu_apps() -> Result<Vec<StartMenuApp>, String> {
         }
     }
     
-    // 扫描所有开始菜单路径
-    for base_path in start_menu_paths {
-        let path = std::path::Path::new(&base_path);
-        if path.exists() {
-            scan_directory(path, &mut apps);
+    // 递归扫描函数
+    fn scan_directory(path: &std::path::Path, apps: &mut Vec<StartMenuApp>) {
+        use std::time::Instant;
+        let dir_start = Instant::now();
+        log::debug!("[Icon] Scanning directory: {:?}", path);
+        
+        if let Ok(entries) = fs::read_dir(path) {
+            let mut lnk_count = 0;
+            for entry in entries.flatten() {
+                let entry_path = entry.path();
+                
+                if entry_path.is_dir() {
+                    // 递归扫描子目录
+                    scan_directory(&entry_path, apps);
+                } else if entry_path.extension().map_or(false, |ext| ext == "lnk") {
+                    lnk_count += 1;
+                    // 处理 .lnk 文件
+                    if let Some(name) = entry_path.file_stem() {
+                        let name_str = name.to_string_lossy().to_string();
+                        
+                        // 解析快捷方式，获取实际 EXE 路径
+                        let lnk_path = entry_path.display().to_string();
+                        log::debug!("[Icon] Processing LNK #{}: {}", lnk_count, name_str);
+                        
+                        let target_exe = resolve_lnk_target(&lnk_path);
+                        
+                        // 从实际 EXE 提取图标（无箭头），如果解析失败则 fallback 到 lnk
+                        let icon_path = target_exe.as_ref().unwrap_or(&lnk_path);
+                        let icon = get_app_icon(icon_path);
+                        
+                        apps.push(StartMenuApp {
+                            name: name_str.clone(),
+                            path: lnk_path,
+                            executable: name_str,
+                            description: None,
+                            icon,
+                        });
+                    }
+                }
+            }
+            let elapsed = dir_start.elapsed();
+            log::debug!("[Icon] Directory scan completed: {} LNK files in {:?}", lnk_count, elapsed);
         }
     }
+    
+    // 扫描所有开始菜单路径（快速模式）
+    log::info!("[Icon] Fast scanning for app list...");
+    for base_path in &start_menu_paths {
+        let path = std::path::Path::new(base_path);
+        if path.exists() {
+            scan_directory_fast(path, &mut apps);
+        }
+    }
+    
+    let fast_elapsed = total_start.elapsed();
+    log::info!("[Icon] === Fast scan complete: {} apps found in {:?} ===", apps.len(), fast_elapsed);
     
     // 过滤掉卸载相关的程序
     let uninstall_keywords = ["卸载", "uninstall", "remove", "delete"];
@@ -692,6 +1259,77 @@ pub fn get_start_menu_apps() -> Result<Vec<StartMenuApp>, String> {
     apps.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
     apps.dedup_by(|a, b| a.name.to_lowercase() == b.name.to_lowercase());
     
+    log::info!("[Icon] After filtering: {} apps", apps.len());
+    
+    // 从缓存加载图标（快速模式：直接检查缓存文件，不解析快捷方式）
+    log::debug!("[Icon] Loading icons from cache...");
+    let mut cached_count = 0;
+    for app in &mut apps {
+        // 直接使用 LNK 路径作为缓存键（后台会用 EXE 路径更新缓存）
+        let file_hash = compute_file_hash(&app.path);
+        
+        if let Some(cached_icon) = load_icon_from_cache(&file_hash) {
+            app.icon = Some(cached_icon);
+            cached_count += 1;
+        }
+    }
+    log::info!("[Icon] Loaded {} icons from cache", cached_count);
+    
+    // 克隆应用列表用于后台图标提取
+    let apps_for_background = apps.clone();
+    
+    // 启动后台线程异步提取图标并缓存
+    std::thread::spawn(move || {
+        log::info!("[Icon Background] Starting async icon extraction for {} apps", apps_for_background.len());
+        let bg_start = std::time::Instant::now();
+        
+        // 【性能优化】收集所有 LNK 路径，批量解析
+        let lnk_paths: Vec<String> = apps_for_background.iter()
+            .map(|app| app.path.clone())
+            .collect();
+        
+        log::info!("[Icon Background] Batch resolving {} LNK files...", lnk_paths.len());
+        let resolved_targets = batch_resolve_lnk_targets(&lnk_paths);
+        
+        // 使用批量解析结果提取图标
+        for (idx, (app, target_option)) in apps_for_background.iter().zip(resolved_targets.iter()).enumerate() {
+            if idx % 10 == 0 {
+                log::debug!("[Icon Background] Processing {}/{}", idx + 1, apps_for_background.len());
+            }
+            
+            // 【关键修复】优先使用 EXE 路径提取图标（无箭头），如果解析失败才用 LNK
+            let (icon_path, use_exe_hash) = if let Some(exe_path) = target_option {
+                (exe_path.as_str(), true)  // 使用 EXE 路径
+            } else {
+                (app.path.as_str(), false)  // fallback 到 LNK
+            };
+            
+            // 提取图标（会自动检查缓存）
+            if let Some(icon_data) = get_app_icon(icon_path) {
+                // 【关键修复】使用 EXE 路径的 hash 作为缓存键，避免箭头图标
+                let cache_hash = if use_exe_hash {
+                    compute_file_hash(icon_path)
+                } else {
+                    compute_file_hash(&app.path)
+                };
+                
+                save_icon_to_cache(&cache_hash, &icon_data);
+                
+                // 同时用 LNK 路径保存一份缓存（指向同一个图标数据），方便下次快速加载
+                let lnk_hash = compute_file_hash(&app.path);
+                if lnk_hash != cache_hash {
+                    save_icon_to_cache(&lnk_hash, &icon_data);
+                }
+                
+                log::debug!("[Icon Background] Extracted icon for {} from: {}", app.name, icon_path);
+            }
+        }
+        
+        let bg_elapsed = bg_start.elapsed();
+        log::info!("[Icon Background] === Async extraction complete in {:?} ===", bg_elapsed);
+    });
+    
+    // 立即返回应用列表（无图标，但后台会缓存）
     Ok(apps)
 }
 
@@ -708,7 +1346,7 @@ pub fn launch_application(path: String) -> Result<(), String> {
             .map_err(|e| format!("Failed to launch application: {}", e))?;
     }
     
-    #[cfg(target_os = "macos")]
+    #[cfg(not(target_os = "windows"))]
     {
         Command::new("open")
             .arg(&path)
@@ -716,15 +1354,18 @@ pub fn launch_application(path: String) -> Result<(), String> {
             .map_err(|e| format!("Failed to launch application: {}", e))?;
     }
     
-    #[cfg(target_os = "linux")]
-    {
-        Command::new("xdg-open")
-            .arg(&path)
-            .spawn()
-            .map_err(|e| format!("Failed to launch application: {}", e))?;
-    }
-    
     Ok(())
+}
+
+/// 获取单个应用的图标（从缓存或实时提取）
+#[tauri::command]
+pub fn get_app_icon_by_path(path: String) -> Result<Option<String>, String> {
+    // 解析快捷方式获取实际 EXE 路径
+    let target_exe = resolve_lnk_target(&path);
+    let icon_path = target_exe.as_ref().unwrap_or(&path);
+    
+    // 提取图标（会自动检查缓存）
+    Ok(get_app_icon(icon_path))
 }
 
 /// Everything 搜索结果项

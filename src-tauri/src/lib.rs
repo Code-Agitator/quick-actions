@@ -6,7 +6,7 @@ use commands::AppState;
 use plugin_manager::PluginManager;
 use std::sync::{Arc, Mutex};
 use std::collections::VecDeque;
-use tauri::{Manager, Emitter, menu::{Menu, MenuItem, PredefinedMenuItem}, tray::{TrayIconBuilder, MouseButton, MouseButtonState}};
+use tauri::{Manager, menu::{Menu, MenuItem, PredefinedMenuItem}, tray::{TrayIconBuilder, MouseButton, MouseButtonState}};
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
 fn toggle_main_window(app: &tauri::AppHandle) {
@@ -63,14 +63,44 @@ pub fn run() {
                     .title("Plugin Window")
                     .inner_size(1200.0, 800.0)
                     .center()
-                    .decorations(true)
-                    .transparent(false)
+                    .decorations(false)  // 去掉系统窗口装饰
+                    .transparent(true)   // 启用透明背景
+                    .resizable(true)     // 必须为 true 才能使用 data-tauri-drag-region
                     .always_on_top(false)
                     .skip_taskbar(false)
                     .visible(false)  // 初始隐藏
                     .build()
                 {
-                    Ok(_) => {
+                    Ok(window) => {
+                        // 为插件窗口应用 Windows Acrylic 模糊效果
+                        #[cfg(target_os = "windows")]
+                        {
+                            use window_vibrancy::*;
+                            let _ = apply_acrylic(&window, Some((28, 28, 28, 180))); // 深色半透明背景
+                            eprintln!("[Window Pool] Applied Acrylic effect to slot {}", i);
+                            
+                            // 使用 Windows 11 DWM API 设置窗口圆角
+                            use winapi::um::dwmapi::DwmSetWindowAttribute;
+                            use winapi::shared::windef::HWND;
+                            use winapi::shared::minwindef::DWORD;
+                            
+                            if let Ok(hwnd) = window.hwnd() {
+                                unsafe {
+                                    let corner_preference: DWORD = 2; // DWMWCP_ROUND
+                                    let hr = DwmSetWindowAttribute(
+                                        hwnd.0 as HWND,
+                                        33, // DWMWA_WINDOW_CORNER_PREFERENCE
+                                        &corner_preference as *const DWORD as *const _,
+                                        std::mem::size_of::<DWORD>() as u32,
+                                    );
+                                    
+                                    if hr == 0 {
+                                        eprintln!("[Window Pool] Applied Windows 11 rounded corners to slot {}", i);
+                                    }
+                                }
+                            }
+                        }
+                        
                         window_pool.push_back(window_label);
                         eprintln!("[Window Pool] ✓ Slot {} created", i);
                     }
@@ -135,54 +165,41 @@ pub fn run() {
                 ])?)
                 .build(app.handle())?;
 
-            // Windows 平台:在主窗口创建后立即移除系统菜单并设置 Acrylic 效果和圆角
-            #[cfg(windows)]
-            {
-                use windows::Win32::UI::WindowsAndMessaging::{
-                    GetWindowLongW, SetWindowLongW, GWL_STYLE, WS_SYSMENU
-                };
-                use windows::Win32::Foundation::HWND;
-                use windows::Win32::Graphics::Dwm::{
-                    DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE,
-                    DWM_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND
-                };
-                
-                if let Some(window) = app.get_webview_window("main") {
+            // 启动时立即隐藏主窗口，等待首次呼出
+            if let Some(window) = app.get_webview_window("main") {
+                // 应用 Windows Acrylic 模糊效果
+                #[cfg(target_os = "windows")]
+                {
+                    use window_vibrancy::*;
+                    let _ = apply_acrylic(&window, Some((28, 28, 28, 180))); // 深色半透明背景
+                    eprintln!("[Window] Applied Acrylic effect to main window");
+                    
+                    // 使用 Windows 11 DWM API 设置窗口圆角
+                    use winapi::um::dwmapi::DwmSetWindowAttribute;
+                    use winapi::shared::windef::HWND;
+                    use winapi::shared::minwindef::DWORD;
+                    
                     if let Ok(hwnd) = window.hwnd() {
-                        let hwnd_value = hwnd.0 as isize;
                         unsafe {
-                            // 移除系统菜单
-                            let current_style = GetWindowLongW(HWND(hwnd_value), GWL_STYLE);
-                            let new_style = current_style & !WS_SYSMENU.0 as i32;
-                            SetWindowLongW(HWND(hwnd_value), GWL_STYLE, new_style);
-                            println!("[Tauri] System menu removed from main window");
-                            
-                            // 设置窗口圆角 (DWMWCP_ROUND = 2)
-                            let corner_preference = DWM_WINDOW_CORNER_PREFERENCE(DWMWCP_ROUND.0);
-                            let result = DwmSetWindowAttribute(
-                                HWND(hwnd_value),
-                                DWMWA_WINDOW_CORNER_PREFERENCE,
-                                &corner_preference as *const _ as *const _,
-                                std::mem::size_of::<DWM_WINDOW_CORNER_PREFERENCE>() as u32
+                            // DWMWA_WINDOW_CORNER_PREFERENCE = 33
+                            // DWMWCP_ROUND = 2 (圆角)
+                            let corner_preference: DWORD = 2; // DWMWCP_ROUND
+                            let hr = DwmSetWindowAttribute(
+                                hwnd.0 as HWND,
+                                33, // DWMWA_WINDOW_CORNER_PREFERENCE
+                                &corner_preference as *const DWORD as *const _,
+                                std::mem::size_of::<DWORD>() as u32,
                             );
-                            if result.is_ok() {
-                                println!("[Tauri] Window corner radius set to rounded");
+                            
+                            if hr == 0 {
+                                eprintln!("[Window] Applied Windows 11 rounded corners via DWM");
                             } else {
-                                eprintln!("[Tauri] Failed to set window corner radius");
+                                eprintln!("[Window] Failed to set DWM corner preference: {}", hr);
                             }
                         }
                     }
-                    
-                    // 使用 window-vibrancy 设置 Acrylic 毛玻璃效果（暗色调，更高透明度）
-                    match window_vibrancy::apply_acrylic(&window, Some((30, 30, 30, 160))) {
-                        Ok(_) => println!("[Tauri] Dark Acrylic effect applied successfully"),
-                        Err(e) => eprintln!("[Tauri] Failed to apply acrylic: {}", e),
-                    }
                 }
-            }
-
-            // 启动时立即隐藏主窗口，等待首次呼出
-            if let Some(window) = app.get_webview_window("main") {
+                
                 let _ = window.hide();
             }
 
@@ -230,6 +247,7 @@ pub fn run() {
             commands::open_plugin_window,
             commands::close_plugin_window,
             commands::close_all_plugin_windows,
+            commands::set_main_window_size,
             commands::get_plugin_path,
             commands::reload_plugins,
             commands::read_plugin_file,

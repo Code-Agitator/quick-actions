@@ -19,7 +19,7 @@ export function DebugPanel() {
     return (
       <button
         onClick={togglePanel}
-        className="fixed bottom-4 right-4 w-10 h-10 bg-purple-600 hover:bg-purple-700 text-white rounded-full shadow-lg flex items-center justify-center text-lg z-50 transition-colors"
+        className="fixed bottom-4 left-4 w-10 h-10 bg-gray-700/80 hover:bg-gray-600/90 backdrop-blur-sm text-gray-300 hover:text-white rounded-full shadow-lg flex items-center justify-center text-lg z-50 transition-all duration-200 border border-gray-600/50"
         title="Debug 面板"
       >
         🐛
@@ -28,7 +28,7 @@ export function DebugPanel() {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 w-80 bg-gray-900 text-white rounded-lg shadow-2xl z-50 overflow-hidden">
+    <div className="fixed bottom-4 left-4 w-80 bg-gray-900/95 backdrop-blur-md text-white rounded-md shadow-2xl z-50 overflow-hidden border border-gray-700/50">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-purple-600">
         <h3 className="font-bold text-sm">🐛 Debug 面板</h3>

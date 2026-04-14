@@ -162,7 +162,7 @@ const App: React.FC<AppProps> = ({ query, onResult }) => {
                 searchEverything(e.target.value);
               }}
               placeholder="输入关键词搜索文件..."
-              className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+              className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
               autoFocus
             />
             <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
@@ -211,7 +211,7 @@ const App: React.FC<AppProps> = ({ query, onResult }) => {
         )}
 
         {!loading && !error && results.length > 0 && (
-          <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="bg-white rounded-md shadow overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">

@@ -128,32 +128,37 @@ export function PluginUI({ plugin, onClose }: PluginUIProps) {
   }, [pluginModule, plugin.id]);
 
   return (
-    <div className="fixed inset-0 z-50 bg-white dark:bg-gray-900 flex flex-col h-screen">
-      {/* 头部 */}
-      <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm">
-        <div className="flex items-center gap-4">
-          <div className="text-4xl p-3 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl shadow-lg">
+    <div className="fixed inset-0 z-50 flex flex-col h-screen ios-frosted">
+      {/* 头部 - iOS 风格毛玻璃（紧凑版 + 可拖拽） */}
+      <div 
+        className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-white/10 bg-transparent backdrop-blur-xl select-none"
+        data-tauri-drag-region
+        style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+      >
+        <div className="flex items-center gap-3">
+          <div className="text-2xl p-2 bg-gradient-to-br from-blue-500/80 to-purple-600/80 rounded-md shadow-lg backdrop-blur-sm border border-white/10">
             {plugin.icon || '🔌'}
           </div>
           <div>
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+            <h2 className="text-base font-bold text-gray-100 tracking-tight">
               {plugin.name}
             </h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+            <p className="text-xs text-gray-400/80 mt-0.5 line-clamp-1">
               {plugin.description}
             </p>
           </div>
         </div>
         <button
           onClick={onClose}
-          className="p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors group"
+          className="p-2 rounded-md hover:bg-white/10 transition-colors duration-150 group"
+          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         >
-          <X className="w-6 h-6 text-gray-500 dark:text-gray-400 group-hover:text-red-500 transition-colors" />
+          <X className="w-5 h-5 text-gray-400 group-hover:text-red-400 transition-colors" />
         </button>
       </div>
 
       {/* 内容区域 */}
-      <div className="flex-1 overflow-auto relative w-full">
+      <div className="flex-1 overflow-auto relative w-full bg-transparent">
         {loading ? (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="flex flex-col items-center gap-4">

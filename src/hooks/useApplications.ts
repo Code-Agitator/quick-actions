@@ -5,6 +5,7 @@ import { ApplicationResult, createApplicationResult } from '../types/searchResul
 export function useApplications() {
   const [applications, setApplications] = useState<ApplicationResult[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasAutoReloaded, setHasAutoReloaded] = useState(false); // 标记是否已经自动刷新过
 
   useEffect(() => {
     loadApplications();
@@ -22,12 +23,32 @@ export function useApplications() {
           app.executable,
           {
             description: app.description,
-            icon: undefined, // 不再使用 emoji，由前端组件渲染 React 图标
+            icon: app.icon, // 使用后端提取的真实图标（Base64）
           }
         );
       });
       
       setApplications(appResults);
+      
+      // 智能自动刷新：如果这是首次加载且大部分应用没有图标，则在 10 秒后自动刷新
+      if (!hasAutoReloaded && appResults.length > 0) {
+        const appsWithIcons = appResults.filter(app => app.icon).length;
+        const iconRatio = appsWithIcons / appResults.length;
+        
+        console.log(`[useApplications] Icon coverage: ${appsWithIcons}/${appResults.length} (${(iconRatio * 100).toFixed(1)}%)`);
+        
+        // 如果图标覆盖率低于 50%，则在 10 秒后自动刷新
+        if (iconRatio < 0.5) {
+          console.log('[useApplications] Low icon coverage, scheduling auto-reload in 10s...');
+          setTimeout(() => {
+            console.log('[useApplications] Auto-reloading applications for cached icons...');
+            loadApplications();
+            setHasAutoReloaded(true);
+          }, 10000);
+        } else {
+          setHasAutoReloaded(true);
+        }
+      }
     } catch (error) {
       console.error('[useApplications] Failed to load applications:', error);
     } finally {

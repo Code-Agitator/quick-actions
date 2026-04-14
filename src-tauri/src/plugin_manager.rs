@@ -270,11 +270,38 @@ impl PluginManager {
             }
         }
 
-        // 3. 从内存中移除
+        // 3. 卸载源码目录下的插件 (开发模式)
+        if let Ok(current_dir) = std::env::current_dir() {
+            let source_plugins = if current_dir.ends_with("src-tauri") {
+                current_dir.parent().unwrap_or(&current_dir).join("plugins").join(id)
+            } else {
+                current_dir.join("plugins").join(id)
+            };
+            
+            if source_plugins.exists() {
+                match fs::remove_dir_all(&source_plugins) {
+                    Ok(_) => {
+                        log::info!("[PluginManager] Uninstalled plugin from source dir: {:?}", source_plugins);
+                        success = true;
+                    }
+                    Err(e) => {
+                        log::warn!("[PluginManager] Failed to uninstall from source dir: {}", e);
+                        if last_error.is_none() {
+                            last_error = Some(e.to_string());
+                        }
+                    }
+                }
+            }
+        }
+
+        // 4. 从内存中移除
         self.plugins.remove(id);
         self.plugin_paths.remove(id);
 
         if success {
+            // 重新扫描插件列表，确保内存状态与文件系统同步
+            log::info!("[PluginManager] Re-scanning plugins after uninstall...");
+            let _ = self.scan_plugins();
             Ok(())
         } else {
             Err(last_error.unwrap_or_else(|| "Plugin not found or unknown error".to_string()))

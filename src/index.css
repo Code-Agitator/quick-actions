@@ -4,6 +4,34 @@
 @tailwind components;
 @tailwind utilities;
 
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent !important;
+  /* 全局抗锯齿优化 */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* 【关键修复】消除 WebView2 默认背景色和边缘灰色 */
+html::before,
+body::before,
+#root::before {
+  content: '';
+  position: fixed;
+  top: -50px;
+  left: -50px;
+  right: -50px;
+  bottom: -50px;
+  background: transparent !important;
+  pointer-events: none;
+  z-index: -9999;
+}
+
 /* 禁用右键菜单 */
 * {
   -webkit-user-select: none;
@@ -21,6 +49,31 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   letter-spacing: -0.01em;
+}
+
+/* 搜索框文字颜色主题变量 */
+:root {
+  --search-input-color: #2a2a2a;
+}
+
+html.dark {
+  --search-input-color: #e5e5e5;
+}
+
+/* 浅色模式全局样式 - 白色背景 + 蓝色主题 */
+html:not(.dark) body {
+  color: #374151;
+  background: transparent !important;
+}
+
+/* 浅色模式输入框样式 - 统一使用 CSS 变量 */
+html:not(.dark) input {
+  color: var(--search-input-color);
+  -webkit-text-fill-color: var(--search-input-color);
+}
+
+html:not(.dark) input::placeholder {
+  color: #9ca3af;
 }
 
 /* 输入框字体优化 */
@@ -51,4 +104,125 @@ input {
 
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
   background-color: rgba(255, 255, 255, 0.25);
+}
+
+/* iOS 毛玻璃效果 - 高质感立体版（深色模式） */
+.ios-frosted {
+  /* 核心模糊效果 - 增强模糊 */
+  -webkit-backdrop-filter: blur(120px) saturate(200%);
+  backdrop-filter: blur(120px) saturate(200%);
+  
+  /* 统一的半透明深色背景 - 确保收起和展开状态一致 */
+  background: rgba(28, 28, 28, calc(0.90 * var(--window-opacity, 0.98)));
+  
+  /* 优化圆角渲染 - 消除锯齿 */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transform: translateZ(0); /* 启用硬件加速 */
+  will-change: transform; /* 提示浏览器优化渲染 */
+  
+  /* 增强的立体阴影系统 - 多层阴影创造深度 */
+  box-shadow: 
+    /* 顶部高光 - 凸起效果 */
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    /* 底部微弱反光 */
+    inset 0 -1px 0 rgba(255, 255, 255, 0.05),
+    /* 外层投影 - 主阴影 */
+    0 25px 70px rgba(0, 0, 0, 0.55),
+    /* 中层投影 - 中等距离 */
+    0 15px 40px rgba(0, 0, 0, 0.45),
+    /* 近层投影 - 近距离 */
+    0 5px 15px rgba(0, 0, 0, 0.35),
+    /* 边缘描边 - 增强轮廓 */
+    0 0 0 0.5px rgba(255, 255, 255, 0.1),
+    /* 内部暗角 - 增加深度感 */
+    inset 0 0 40px rgba(0, 0, 0, 0.15);
+}
+
+/* 浅色模式 - 优雅的米白色 Acrylic 效果 */
+html:not(.dark) .ios-frosted {
+  /* 温暖的米白色背景 - 更好的 Acrylic 质感 */
+  background: rgba(248, 248, 250, calc(0.96 * var(--window-opacity, 0.98)));
+  
+  /* 优化圆角渲染 - 消除锯齿 */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transform: translateZ(0); /* 启用硬件加速 */
+  will-change: transform; /* 提示浏览器优化渲染 */
+  
+  /* 浅色模式阴影 - 柔和且自然 */
+  box-shadow: 
+    /* 顶部高光 - 更细腻 */
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    /* 底部微弱阴影 */
+    inset 0 -1px 0 rgba(0, 0, 0, 0.03),
+    /* 外层投影 - 主阴影（更柔和） */
+    0 20px 60px rgba(0, 0, 0, 0.08),
+    /* 中层投影 */
+    0 12px 32px rgba(0, 0, 0, 0.06),
+    /* 近层投影 */
+    0 4px 12px rgba(0, 0, 0, 0.04),
+    /* 边缘描边 - 极细灰色 */
+    0 0 0 0.5px rgba(0, 0, 0, 0.06),
+    /* 内部微光 - 增加立体感 */
+    inset 0 0 60px rgba(255, 255, 255, 0.3);
+}
+
+/* 内容区域的毛玻璃卡片效果 - 增强立体版（深色模式） */
+.ios-frosted-card {
+  -webkit-backdrop-filter: blur(60px) saturate(180%);
+  backdrop-filter: blur(60px) saturate(180%);
+  background: rgba(45, 45, 45, 0.65);
+  box-shadow: 
+    /* 顶部高光 */
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    /* 底部阴影 */
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2),
+    /* 外层投影 */
+    0 6px 24px rgba(0, 0, 0, 0.35),
+    /* 边缘描边 */
+    0 0 0 0.5px rgba(255, 255, 255, 0.08);
+}
+
+/* 浅色模式卡片 - 纯净白色带微妙层次 */
+html:not(.dark) .ios-frosted-card {
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 
+    /* 顶部高光 - 明亮 */
+    inset 0 1px 0 rgba(255, 255, 255, 1),
+    /* 底部微弱阴影 */
+    inset 0 -1px 0 rgba(0, 0, 0, 0.04),
+    /* 外层投影 - 非常柔和 */
+    0 4px 16px rgba(0, 0, 0, 0.06),
+    /* 边缘描边 - 几乎不可见 */
+    0 0 0 0.5px rgba(0, 0, 0, 0.04);
+}
+
+/* 圆角抗锯齿优化 - 通用工具类 */
+.rounded-smooth {
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  -webkit-perspective: 1000;
+  perspective: 1000;
+  transform: translate3d(0, 0, 0);
+}
+
+/* 输入框立体效果 */
+.search-input-enhanced {
+  position: relative;
+}
+
+.search-input-enhanced::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.08) 0%,
+    transparent 50%,
+    rgba(0, 0, 0, 0.1) 100%
+  );
+  pointer-events: none;
+  z-index: -1;
 }
