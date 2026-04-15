@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "build:plugins": "pnpm --filter \"./plugins/*\" build",
+    "dev:plugins": "pnpm --filter \"./plugins/*\" build --watch",
+    "tauri:dev": "pnpm build:plugins && tauri dev"
   },
   "dependencies": {
     "@heroui/react": "^3.0.1",
