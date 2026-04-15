@@ -101,7 +101,7 @@ pub async fn plugin_everything_search(
     app: AppHandle,
 ) -> Result<Vec<PluginEverythingResult>, String> {
     // 调用 commands 中的 everything_search
-    let response = crate::commands::everything_search(query, host)?;
+    let response = crate::commands::everything_search(query, host, app).await?;
     
     // 转换为插件友好的格式
     let results = response.results.into_iter().map(|r| PluginEverythingResult {

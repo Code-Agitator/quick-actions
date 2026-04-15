@@ -48,8 +48,8 @@ reqwest = { version = "0.11", features = ["blocking", "json"] }
 urlencoding = "2.1"
 window-vibrancy = "0.6"
 base64 = "0.21"
+winapi = { version = "0.3.9", features = ["libloaderapi", "winuser", "shellapi", "commctrl", "wingdi", "winbase", "windef", "winnt", "wincon", "fileapi", "minwindef", "shobjidl", "objbase", "objidl", "combaseapi", "unknwnbase", "dwmapi"] }
+libc = "0.2"
 scopeguard = "1.2"
-winapi = { version = "0.3.9", features = ["shellapi", "commctrl", "wingdi", "winuser", "winbase", "windef", "winnt", "wincon", "fileapi", "minwindef", "shobjidl", "objbase", "objidl", "combaseapi", "unknwnbase", "dwmapi"] }
 image = "0.24"
-windows = { version = "0.52", features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation"] }
 

@@ -3532,6 +3532,7 @@ dependencies = [
  "chrono",
  "dirs 5.0.1",
  "image 0.24.9",
+ "libc",
  "log",
  "notify",
  "pinyin",

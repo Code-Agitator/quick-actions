@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use tauri::{State, WebviewWindow, Emitter, Manager, Size, LogicalSize, Position, LogicalPosition};
 use std::collections::VecDeque;
 use pinyin::ToPinyin;
+use tauri_plugin_shell::ShellExt;
 
 pub struct AppState {
     pub plugin_manager: Mutex<PluginManager>,
@@ -1428,52 +1429,85 @@ pub struct EverythingResponse {
     pub results: Vec<EverythingResult>,
 }
 
-/// 通过 Everything HTTP API 搜索文件
+/// 通过 es.exe Sidecar 搜索文件
 #[tauri::command]
-pub fn everything_search(query: String, host: Option<String>) -> Result<EverythingResponse, String> {
-    let host = host.unwrap_or_else(|| "http://localhost".to_string());
+pub async fn everything_search(query: String, _host: Option<String>, app: tauri::AppHandle) -> Result<EverythingResponse, String> {
+    eprintln!("[Everything CLI] Searching for: {}", query);
     
-    // 构建请求 URL
-    let url = format!(
-        "{}/?json=1&path_column=1&size_column=1&date_modified_column=1&count=100&search={}",
-        host,
-        urlencoding::encode(&query)
-    );
+    // 使用 shell plugin 的 sidecar API
+    eprintln!("[Everything CLI] Creating sidecar command...");
+    let command = app.shell()
+        .sidecar("libs/es")
+        .map_err(|e| {
+            eprintln!("[Everything CLI] Failed to create sidecar: {}", e);
+            format!("Failed to create sidecar command: {}", e)
+        })?
+        .args(&[&query, "-json", "-max-results", "100"]);
     
-    // 发送 HTTP 请求
-    let client = reqwest::blocking::Client::builder()
-        .timeout(std::time::Duration::from_secs(5))
-        .build()
-        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+    eprintln!("[Everything CLI] Executing command...");
+    // 执行命令
+    let output = command.output()
+        .await
+        .map_err(|e| {
+            eprintln!("[Everything CLI] Execution failed: {}", e);
+            format!("Failed to execute es.exe: {}", e)
+        })?;
     
-    let response = client.get(&url)
-        .send()
-        .map_err(|e| format!("Failed to send request: {}", e))?;
+    eprintln!("[Everything CLI] Command completed with status: {}", output.status.success());
     
-    if !response.status().is_success() {
-        return Err(format!("HTTP error: {}", response.status()));
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        eprintln!("[Everything CLI] STDERR: {}", stderr);
+        eprintln!("[Everything CLI] STDOUT: {}", stdout);
+        return Err(format!("es.exe error: {}", stderr));
     }
     
-    // 解析 JSON 响应
-    let json_value: serde_json::Value = response.json()
-        .map_err(|e| format!("Failed to parse JSON: {}", e))?;
+    // 解析 JSON 输出
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    eprintln!("[Everything CLI] Raw output length: {} bytes", stdout.len());
+    eprintln!("[Everything CLI] Raw output: {}", if stdout.len() > 200 { &stdout[..200] } else { &stdout });
     
-    // 提取 results 数组
-    let results_array = json_value.get("results")
-        .and_then(|v| v.as_array())
-        .ok_or_else(|| "Invalid response format: missing results array".to_string())?;
+    // 解析 es.exe 的 JSON 输出格式
+    let results = parse_es_output(&stdout)?;
     
-    // 转换为结构化数据
-    let results: Vec<EverythingResult> = results_array.iter()
-        .map(|item| EverythingResult {
-            name: item.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            path: item.get("path").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-            size: item.get("size").and_then(|v| v.as_u64()).unwrap_or(0),
-            date_modified: item.get("date-modified").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-        })
-        .collect();
+    eprintln!("[Everything CLI] Found {} results", results.len());
     
     Ok(EverythingResponse { results })
+}
+
+/// 解析 es.exe 的 JSON 输出
+fn parse_es_output(output: &str) -> Result<Vec<EverythingResult>, String> {
+    // es.exe 的 JSON 输出格式：
+    // [{"filename":"C:\\path\\file.txt","size":1234,"date_modified":"2024-01-01 12:00:00"}]
+    
+    let parsed: Vec<serde_json::Value> = serde_json::from_str(output)
+        .map_err(|e| format!("Failed to parse JSON: {}", e))?;
+    
+    let results = parsed.into_iter().filter_map(|item| {
+        // es.exe 使用 "filename" 字段包含完整路径
+        let filename = item.get("filename")?.as_str()?;
+        
+        // 分离文件名和路径
+        let path_obj = std::path::Path::new(filename);
+        let name = path_obj.file_name()?.to_string_lossy().to_string();
+        let path = path_obj.parent()?.to_string_lossy().to_string();
+        
+        let size = item.get("size").and_then(|v| v.as_u64()).unwrap_or(0);
+        let date_modified = item.get("date_modified")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        
+        Some(EverythingResult {
+            name,
+            path,
+            size,
+            date_modified,
+        })
+    }).collect();
+    
+    Ok(results)
 }
 
 /// 通用剪贴板 API: 读取文本

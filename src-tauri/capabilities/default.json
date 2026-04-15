@@ -12,6 +12,17 @@
     "core:event:allow-listen",
     "core:event:allow-emit",
     "core:event:allow-emit-to",
-    "opener:default"
+    "opener:default",
+    "shell:allow-execute",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "libs/es",
+          "sidecar": true,
+          "args": true
+        }
+      ]
+    }
   ]
 }

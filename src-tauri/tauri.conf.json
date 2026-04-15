@@ -47,7 +47,11 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "../plugins": "plugins"
-    }
+      "../plugins": "plugins",
+      "libs/es-x86_64-pc-windows-msvc.exe": "libs/es-x86_64-pc-windows-msvc.exe"
+    },
+    "externalBin": [
+      "libs/es"
+    ]
   }
 }
