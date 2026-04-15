@@ -299,6 +299,8 @@ pub fn run() {
             commands::storage_get,
             commands::get_clipboard_history,
             commands::log_frontend_message,
+            commands::open_path,
+            commands::reveal_in_folder,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

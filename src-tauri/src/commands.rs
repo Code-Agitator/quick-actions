@@ -1603,3 +1603,47 @@ pub fn get_clipboard_history(limit: usize, app: tauri::AppHandle) -> Result<Vec<
     // 但为了满足“历史记录”，我们修改 storage_set 的逻辑，专门针对 clipboard_history 做数组追加
     Ok(vec![])
 }
+
+/// 打开文件或文件夹（使用系统默认应用）
+#[tauri::command]
+pub fn open_path(path: String, app: tauri::AppHandle) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    
+    eprintln!("[OpenPath] Opening: {}", path);
+    
+    // 验证路径是否存在
+    let path_obj = std::path::Path::new(&path);
+    if !path_obj.exists() {
+        return Err(format!("Path does not exist: {}", path));
+    }
+    
+    // 使用 opener 插件打开文件/文件夹
+    app.opener()
+        .open_path(&path, None::<&str>)
+        .map_err(|e| format!("Failed to open path: {}", e))?;
+    
+    eprintln!("[OpenPath] Successfully opened: {}", path);
+    Ok(())
+}
+
+/// 在文件管理器中显示文件（选中文件）
+#[tauri::command]
+pub fn reveal_in_folder(path: String, app: tauri::AppHandle) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    
+    eprintln!("[RevealInFolder] Revealing: {}", path);
+    
+    // 验证路径是否存在
+    let path_obj = std::path::Path::new(&path);
+    if !path_obj.exists() {
+        return Err(format!("Path does not exist: {}", path));
+    }
+    
+    // 使用 opener 插件在文件夹中显示文件
+    app.opener()
+        .reveal_item_in_dir(&path)
+        .map_err(|e| format!("Failed to reveal in folder: {}", e))?;
+    
+    eprintln!("[RevealInFolder] Successfully revealed: {}", path);
+    Ok(())
+}

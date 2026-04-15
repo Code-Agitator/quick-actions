@@ -185,6 +185,35 @@ interface UtilsAPI {
 }
 
 /**
+ * Everything 搜索 API
+ */
+interface EverythingAPI {
+  /**
+   * 搜索文件
+   * @param query 搜索关键词
+   * @param host Everything 主机地址（可选）
+   */
+  search: (query: string, host?: string) => Promise<Array<{
+    name: string;
+    path: string;
+    size: number;
+    dateModified: string;
+  }>>;
+  
+  /**
+   * 打开文件或文件夹
+   * @param filePath 文件路径
+   */
+  open: (filePath: string) => Promise<void>;
+  
+  /**
+   * 在文件管理器中显示文件
+   * @param filePath 文件路径
+   */
+  revealInFolder: (filePath: string) => Promise<void>;
+}
+
+/**
  * 本地存储 API
  */
 interface StorageAPI {
@@ -255,6 +284,11 @@ export interface ActionsAPI {
    * HTTP 请求
    */
   http: HTTPAPI;
+  
+  /**
+   * Everything 搜索
+   */
+  everything: EverythingAPI;
   
   /**
    * 配置管理
@@ -405,6 +439,47 @@ export function createActionsAPI(pluginId: string): ActionsAPI {
           return result as HTTPResponse;
         } catch (error) {
           console.error('[ACTIONS] HTTP POST failed:', error);
+          throw error;
+        }
+      }
+    },
+    
+    everything: {
+      search: async (query: string, host?: string) => {
+        try {
+          const results = await invoke<any[]>('plugin_everything_search', {
+            pluginId,
+            query,
+            host
+          });
+          
+          // 转换字段名为驼峰格式
+          return results.map((item: any) => ({
+            name: item.name,
+            path: item.path,
+            size: item.size,
+            dateModified: item.date_modified || item.dateModified,
+          }));
+        } catch (error) {
+          console.error('[ACTIONS] Everything search failed:', error);
+          throw error;
+        }
+      },
+      
+      open: async (filePath: string) => {
+        try {
+          await invoke('open_path', { path: filePath });
+        } catch (error) {
+          console.error('[ACTIONS] Open path failed:', error);
+          throw error;
+        }
+      },
+      
+      revealInFolder: async (filePath: string) => {
+        try {
+          await invoke('reveal_in_folder', { path: filePath });
+        } catch (error) {
+          console.error('[ACTIONS] Reveal in folder failed:', error);
           throw error;
         }
       }

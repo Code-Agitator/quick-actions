@@ -18,7 +18,6 @@ const App: React.FC<AppProps> = ({ query, onResult }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [port, setPort] = useState('6808'); // Everything HTTP 服务器端口
 
   // 搜索 Everything
   const searchEverything = async (keyword: string) => {
@@ -32,39 +31,19 @@ const App: React.FC<AppProps> = ({ query, onResult }) => {
 
     try {
       // 检查 ACTIONS API 是否可用
-      if (!(window as any).ACTIONS || !(window as any).ACTIONS.http) {
+      if (!(window as any).ACTIONS || !(window as any).ACTIONS.everything) {
         throw new Error('ACTIONS API 不可用');
       }
 
-      // 使用 ACTIONS.http.get 发起请求（通过 Rust 后端代理，避免跨域）
-      const response = await (window as any).ACTIONS.http.get(
-        `http://127.0.0.1:${port}/?json=1&path_column=1&size_column=1&date_modified_column=1&count=100&search=${encodeURIComponent(keyword)}`
-      );
-
-      if (response.status === 200) {
-        // Everything 可能直接返回数组，或者返回 { results: [...] }
-        let resultsArray: any[] = [];
-        
-        if (Array.isArray(response.data)) {
-          // 直接是数组
-          resultsArray = response.data;
-        } else if (response.data && response.data.results && Array.isArray(response.data.results)) {
-          // 有 results 字段
-          resultsArray = response.data.results;
-        } else if (response.data && response.data.totalResults > 0) {
-          // 有其他格式
-          resultsArray = [];
-        }
-        
-        setResults(resultsArray.map((item: any) => ({
-          name: item.name || item['Name'] || '',
-          path: item.path || item['Path'] || '',
-          size: parseInt(item.size || item['Size'] || '0'),
-          dateModified: item['date-modified'] || item['Date Modified'] || item.dateModified || '',
-        })));
-      } else {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
+      // 使用 ACTIONS.everything.search 通过 es.exe Sidecar 搜索
+      const searchResults = await (window as any).ACTIONS.everything.search(keyword);
+      
+      setResults(searchResults.map((item: any) => ({
+        name: item.name || '',
+        path: item.path || '',
+        size: parseInt(item.size?.toString() || '0'),
+        dateModified: item.dateModified || '',
+      })));
     } catch (err) {
       console.error('Search error:', err);
       
@@ -74,19 +53,18 @@ const App: React.FC<AppProps> = ({ query, onResult }) => {
       }
       
       // 提供更详细的错误信息
-      if (errorMessage.includes('503')) {
-        errorMessage = `无法连接到 Everything 服务 (503 Service Unavailable)
+      if (errorMessage.includes('es.exe') || errorMessage.includes('sidecar')) {
+        errorMessage = `无法执行 Everything 搜索
 
 可能原因：
-1. Everything HTTP 服务器未启用
-2. Everything 正在运行但 HTTP 服务被阻止
-3. 端口号不正确（当前: ${port}）
-4. 防火墙阻止了连接
+1. Everything 未安装或未运行
+2. es.exe 文件缺失或损坏
+3. Everything 索引未建立
 
 请检查：
-- Everything → 工具 → 选项 → HTTP 服务器 → 启用 HTTP 服务器
-- 确认端口号是否正确（Everything 设置中查看）
-- 尝试在浏览器访问: http://127.0.0.1:${port}/?json=1&search=test`;
+- 确认已安装 Everything (https://www.voidtools.com/zh-cn/)
+- 确保 Everything 正在运行
+- 尝试在 Everything 中手动搜索测试`;
       }
       
       setError(errorMessage);
@@ -118,8 +96,14 @@ const App: React.FC<AppProps> = ({ query, onResult }) => {
       } else if (e.key === 'Enter' && results[selectedIndex]) {
         e.preventDefault();
         const selected = results[selectedIndex];
-        // 打开文件或文件夹
-        window.open(`file://${selected.path}\\${selected.name}`, '_blank');
+        // 使用 ACTIONS.everything.open 打开文件或文件夹
+        const fullPath = `${selected.path}\\${selected.name}`;
+        if ((window as any).ACTIONS?.everything?.open) {
+          (window as any).ACTIONS.everything.open(fullPath);
+        } else {
+          // 降级方案：使用 window.open
+          window.open(`file://${fullPath}`, '_blank');
+        }
       }
     };
 
@@ -169,20 +153,6 @@ const App: React.FC<AppProps> = ({ query, onResult }) => {
               🔎
             </span>
           </div>
-          
-          {/* 端口配置 */}
-          <div className="flex items-center gap-2 text-sm">
-            <label className="text-gray-600">HTTP 端口:</label>
-            <input
-              type="number"
-              value={port}
-              onChange={(e) => setPort(e.target.value)}
-              className="w-24 px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"
-              min="1"
-              max="65535"
-            />
-            <span className="text-gray-500 text-xs">(默认 6808)</span>
-          </div>
         </div>
       </div>
 
@@ -197,9 +167,9 @@ const App: React.FC<AppProps> = ({ query, onResult }) => {
 
         {error && (
           <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded">
-            <p className="text-red-700">❌ {error}</p>
+            <p className="text-red-700 whitespace-pre-line">❌ {error}</p>
             <p className="text-sm text-red-600 mt-2">
-              请确保 Everything 服务已启动并且启用了 HTTP 服务器
+              请确保 Everything 已安装并正在运行
             </p>
           </div>
         )}
@@ -241,10 +211,20 @@ const App: React.FC<AppProps> = ({ query, onResult }) => {
                       }`}
                       onClick={() => {
                         setSelectedIndex(index);
-                        window.open(`file://${item.path}\\${item.name}`, '_blank');
+                        const fullPath = `${item.path}\\${item.name}`;
+                        if ((window as any).ACTIONS?.everything?.open) {
+                          (window as any).ACTIONS.everything.open(fullPath);
+                        } else {
+                          window.open(`file://${fullPath}`, '_blank');
+                        }
                       }}
                       onDoubleClick={() => {
-                        window.open(`file://${item.path}\\${item.name}`, '_blank');
+                        const fullPath = `${item.path}\\${item.name}`;
+                        if ((window as any).ACTIONS?.everything?.open) {
+                          (window as any).ACTIONS.everything.open(fullPath);
+                        } else {
+                          window.open(`file://${fullPath}`, '_blank');
+                        }
                       }}
                     >
                       <td className="px-4 py-3">
@@ -296,8 +276,7 @@ const App: React.FC<AppProps> = ({ query, onResult }) => {
               <li>• 使用 ↑ ↓ 方向键选择结果</li>
               <li>• 按 Enter 键或双击打开文件/文件夹</li>
               <li>• 需要安装并启动 Everything 软件</li>
-              <li>• 需要在 Everything 中启用 HTTP 服务器（菜单 → 工具 → 选项 → HTTP 服务器）</li>
-              <li>• 设置正确的 HTTP 端口号（默认 6808，可在 Everything 设置中查看）</li>
+              <li>• 使用 es.exe CLI 工具进行搜索（无需配置 HTTP 服务器）</li>
             </ul>
           </div>
         )}

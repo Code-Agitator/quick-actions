@@ -16,6 +16,16 @@ export interface PluginAPI {
     writeText: (text: string) => Promise<void>;
     readText: () => Promise<string>;
   };
+  everything: {
+    search: (query: string, host?: string) => Promise<Array<{
+      name: string;
+      path: string;
+      size: number;
+      dateModified: string;
+    }>>;
+    open: (filePath: string) => Promise<void>;
+    revealInFolder: (filePath: string) => Promise<void>;
+  };
 }
 
 export function createPluginAPI(pluginId: string): PluginAPI {
@@ -51,6 +61,29 @@ export function createPluginAPI(pluginId: string): PluginAPI {
       },
       readText: async () => {
         return navigator.clipboard.readText();
+      },
+    },
+    everything: {
+      search: async (query: string, host?: string) => {
+        const results = await invoke<any[]>('plugin_everything_search', { 
+          pluginId, 
+          query,
+          host 
+        });
+          
+        // 转换字段名为驼峰格式
+        return results.map((item: any) => ({
+          name: item.name,
+          path: item.path,
+          size: item.size,
+          dateModified: item.date_modified || item.dateModified,
+        }));
+      },
+      open: async (filePath: string) => {
+        await invoke('open_path', { path: filePath });
+      },
+      revealInFolder: async (filePath: string) => {
+        await invoke('reveal_in_folder', { path: filePath });
       },
     },
   };

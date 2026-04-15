@@ -9,25 +9,16 @@
 - ⌨️ **键盘导航** - 支持方向键选择，Enter 键打开文件
 - 🎯 **双击打开** - 双击文件或文件夹直接打开
 - 🌐 **中文支持** - 完整的中文字符搜索支持
+- ⚡ **无需配置** - 使用 es.exe CLI 工具，无需启用 HTTP 服务器
+- 🚀 **系统集成** - 使用系统默认应用打开文件，更可靠
 
 ## 前置要求
 
-### 1. 安装 Everything
+### 安装 Everything
 
 下载并安装 [Everything](https://www.voidtools.com/zh-cn/) 软件。
 
-### 2. 启用 HTTP 服务器
-
-1. 打开 Everything
-2. 点击菜单：**工具** → **选项**
-3. 选择左侧的 **HTTP 服务器**
-4. ✅ 勾选 **启用 HTTP 服务器**
-5. 📝 记下端口号（默认通常是 6808）
-6. 点击 **确定** 保存设置
-
-**重要**：请在插件界面中设置与 Everything 相同的端口号！
-
-![Everything HTTP 服务器设置](https://www.voidtools.com/support/everything/http_server/)
+**重要**：确保 Everything 正在运行，插件会自动使用内置的 es.exe CLI 工具进行搜索。
 
 ## 使用方法
 
@@ -42,7 +33,8 @@
 
 1. **搜索文件**：在搜索框输入关键词
 2. **浏览结果**：使用 ↑ ↓ 方向键选择结果
-3. **打开文件**：按 Enter 键或双击打开选中的文件/文件夹
+3. **打开文件**：按 Enter 键、单击或双击打开选中的文件/文件夹
+4. **系统集成**：使用系统默认应用打开文件，更加可靠
 
 ## 开发
 
@@ -66,41 +58,49 @@ pnpm build
 
 ## 技术实现
 
-### Everything HTTP API
+### es.exe Sidecar
 
-插件通过 Everything 的 HTTP API 进行搜索，使用 JSONP 方式绕过浏览器 CORS 限制：
+插件通过 Tauri Sidecar 机制调用 Everything 的命令行工具 `es.exe` 进行搜索：
 
+```rust
+// Rust 后端代码
+let command = app.shell()
+    .sidecar("libs/es")
+    .args(&[&query, "-json", "-max-results", "100"]);
 ```
-http://localhost/?json=1&callback=xxx&search=关键词
+
+**优势**：
+- ✅ 无需配置 HTTP 服务器
+- ✅ 更快的搜索速度
+- ✅ 更可靠的连接
+- ✅ 统一的架构设计
+
+### ACTIONS API
+
+插件通过 ACTIONS.everything 调用后端：
+
+```typescript
+// 搜索文件
+const results = await window.ACTIONS.everything.search('关键词');
+
+// 打开文件
+await window.ACTIONS.everything.open('C:\\path\\to\\file.txt');
+
+// 在文件夹中显示文件
+await window.ACTIONS.everything.revealInFolder('C:\\path\\to\\file.txt');
 ```
-
-支持的参数：
-- `json=1` - 返回 JSON 格式
-- `path_column=1` - 包含路径信息
-- `size_column=1` - 包含文件大小
-- `date_modified_column=1` - 包含修改时间
-- `count=100` - 最多返回 100 条结果
-- `search=xxx` - 搜索关键词
-- `callback=xxx` - JSONP 回调函数名
-
-**注意**：
-- URL 是 `http://localhost/` 而不是 `http://localhost/Everything`
-- 使用 JSONP（动态创建 script 标签）而非 fetch，避免跨域问题
-- 不需要修改 Tauri Rust 代码，完全在前端实现
 
 ### 响应格式
 
 ```json
-{
-  "results": [
-    {
-      "name": "filename.txt",
-      "path": "C:\\Users\\...",
-      "size": "1024",
-      "date-modified": "132934567890123456"
-    }
-  ]
-}
+[
+  {
+    "name": "filename.txt",
+    "path": "C:\\Users\\...",
+    "size": 1024,
+    "dateModified": "2024-01-01 12:00:00"
+  }
+]
 ```
 
 ## 常见问题
@@ -109,13 +109,16 @@ http://localhost/?json=1&callback=xxx&search=关键词
 
 A: 请检查：
 1. Everything 是否正在运行
-2. HTTP 服务器是否已启用
-3. 端口是否正确（默认 80）
-4. 防火墙是否阻止了连接
+2. Everything 是否已建立索引（首次启动需要时间）
+3. 搜索关键词是否正确
+4. 尝试在 Everything 主程序中手动搜索测试
 
-### Q: 如何更改端口？
+### Q: 提示 "es.exe" 相关错误？
 
-A: 在 Everything 的 HTTP 服务器设置中修改端口，然后更新插件代码中的 URL。
+A: 这通常表示 es.exe 文件缺失或损坏。请重新构建项目：
+```bash
+pnpm tauri:dev
+```
 
 ### Q: 支持正则表达式吗？
 
