@@ -656,6 +656,21 @@ pub fn show_window(window: WebviewWindow) -> Result<(), String> {
         }
     }
     
+    // 【关键优化】如果是主窗口，在显示之前先退出设置页面
+    if window.label() == "main" {
+        let exit_settings_js = r#"
+            (function() {
+                if (window.__exitSettings) {
+                    console.log('[PreShow] Exiting settings page before showing window...');
+                    window.__exitSettings();
+                }
+            })();
+        "#;
+        let _ = window.eval(exit_settings_js);
+        // 等待 React 状态更新
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    
     // 先显示窗口
     window.show().map_err(|e| e.to_string())?;
     
@@ -681,13 +696,20 @@ pub fn show_window(window: WebviewWindow) -> Result<(), String> {
             (function() {
                 const input = document.querySelector('input[type="text"], input:not([type]), .search-input, [data-testid="search-input"]');
                 if (input) {
-                    // 确保输入框获得焦点并选中所有文本
+                    // 确保输入框获得焦点
                     input.focus();
-                    // 延迟一点再选中，确保 focus 已完成
-                    setTimeout(() => {
-                        input.select();
-                        console.log('[AutoFocus] Input focused and text selected');
-                    }, 10);
+                    
+                    // 【新特性】呼出窗口时，如果有内容则重新触发搜索
+                    if (window.__handleShowWithSearch) {
+                        console.log('[AutoFocus] Calling __handleShowWithSearch...');
+                        window.__handleShowWithSearch();
+                    } else {
+                        // 备用方案：手动选中文本
+                        setTimeout(() => {
+                            input.select();
+                            console.log('[AutoFocus] Input focused and text selected (fallback)');
+                        }, 10);
+                    }
                 } else {
                     console.warn('[AutoFocus] Input element not found');
                 }
@@ -706,10 +728,10 @@ pub fn hide_window(window: WebviewWindow, app: tauri::AppHandle) -> Result<(), S
     
     let is_plugin = window.label().starts_with("plugin-");
     
-    // 如果是主窗口，清空搜索框状态
-    if window.label() == "main" {
-        let _ = window.eval("window.__resetSearch && window.__resetSearch();");
-    }
+    // 【修改】ESC 隐藏窗口时不再清空搜索框内容，保留用户输入
+    // if window.label() == "main" {
+    //     let _ = window.eval("window.__resetSearch && window.__resetSearch();");
+    // }
     
     window.hide().map_err(|e| e.to_string())?;
     eprintln!("[Window Manager] Window hidden");

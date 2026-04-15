@@ -108,8 +108,50 @@ function App() {
       setIsExpanded(false);
     };
 
+    // 【新特性】呼出窗口时，如果有内容则重新触发搜索
+    const handleShowWithSearch = () => {
+      console.log('[App] Window shown, checking for existing query...');
+      const input = document.querySelector('input[type="text"], input:not([type])') as HTMLInputElement;
+      
+      if (input && input.value && input.value.trim().length > 0) {
+        const currentValue = input.value;
+        console.log('[App] Found existing query:', currentValue, '- re-triggering search');
+        
+        // 关键：先清空再设置，强制 React 检测到变化并触发 useEffect
+        setQuery('');
+        setIsExpanded(false);
+        
+        // 下一帧再设置真实值，确保触发更新
+        requestAnimationFrame(() => {
+          setQuery(currentValue);
+          setIsExpanded(true);
+          console.log('[App] Query set to:', currentValue, ', expanded:', true);
+        });
+        
+        // 选中文本（延迟确保状态更新完成）
+        setTimeout(() => {
+          input.select();
+          console.log('[App] Text selected');
+        }, 100);
+      } else {
+        console.log('[App] No existing query, keeping window collapsed');
+        // 如果没有内容，保持收起状态
+        setIsExpanded(false);
+      }
+    };
+    
+    // 【新特性】退出设置页面
+    const exitSettings = () => {
+      console.log('[App] Exiting settings page');
+      if (showSettings) {
+        setShowSettings(false);
+      }
+    };
+
     // 暴露给 Rust 调用的全局函数
     (window as any).__resetSearch = resetSearchState;
+    (window as any).__handleShowWithSearch = handleShowWithSearch;
+    (window as any).__exitSettings = exitSettings;
 
     // 使用 capture 阶段确保最早拦截
     document.addEventListener('contextmenu', handleContextMenu, true);
@@ -127,6 +169,8 @@ function App() {
       window.removeEventListener('blur', handleBlur);
       // 清理全局函数
       delete (window as any).__resetSearch;
+      delete (window as any).__handleShowWithSearch;
+      delete (window as any).__exitSettings;
     };
   }, [showSettings]);
 
@@ -215,12 +259,19 @@ function App() {
           }
           break;
         case 'Escape':
-          console.log('[Main Window] ESC pressed, attempting to hide window');
-          console.log('[Main Window] Calling invoke hide_window...');
-          const result = invoke('hide_window');
-          result
-            .then(() => console.log('[Main Window] hide_window succeeded'))
-            .catch(err => console.error('[Main Window] hide_window failed:', err));
+          console.log('[Main Window] ESC pressed');
+          // 【新交互】如果搜索框有内容则清空，否则隐藏窗口
+          if (query.length > 0) {
+            console.log('[Main Window] Clearing search query');
+            setQuery('');
+            setSelectedIndex(0);
+            setIsExpanded(false);
+          } else {
+            console.log('[Main Window] No query, hiding window');
+            invoke('hide_window')
+              .then(() => console.log('[Main Window] Window hidden'))
+              .catch(err => console.error('[Main Window] Failed to hide:', err));
+          }
           break;
         case 'F5':
           e.preventDefault();
