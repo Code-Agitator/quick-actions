@@ -30,9 +30,9 @@ export function Settings({ onClose }: SettingsProps) {
   const { settings, updateSetting, resetSettings } = useAppSettings();
 
   return (
-    <div className="h-screen w-full flex flex-col overflow-hidden">
+    <div className="h-screen w-full flex flex-col overflow-hidden m-0 p-0">
       {/* iOS 风格设置窗口 - 毛玻璃质感，占满全屏 */}
-      <div className="flex-1 ios-frosted overflow-hidden flex border border-white/10 shadow-2xl">
+      <div className="flex-1 ios-frosted overflow-hidden flex">
         {/* 侧边导航 - 使用与主容器相同的背景 */}
         <div className="w-48 flex-shrink-0 bg-transparent flex flex-col border-r border-white/10">
           {/* Header */}
@@ -87,7 +87,7 @@ export function Settings({ onClose }: SettingsProps) {
 
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto bg-transparent">
-          <div className="p-6">
+          <div className="px-6 py-4">
             {activeTab === 'plugins' && <PluginsTab plugins={plugins} loading={loading} onUninstall={uninstallPlugin} />}
             {activeTab === 'appearance' && (
               <AppearanceTab

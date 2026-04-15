@@ -417,8 +417,9 @@ fn get_app_icon(_path: &str) -> Option<String> {
 
 #[tauri::command]
 pub fn get_plugins(state: State<AppState>) -> Result<Vec<PluginMetadata>, String> {
-    let mut manager = state.plugin_manager.lock().unwrap();
-    manager.scan_plugins()
+    let manager = state.plugin_manager.lock().unwrap();
+    // 直接返回已加载的插件列表，不重新扫描
+    Ok(manager.get_all_plugins())
 }
 
 #[tauri::command]
@@ -556,6 +557,28 @@ pub fn close_all_plugin_windows(
     }
     
     Ok(())
+}
+
+/// 【新特性】切换插件窗口置顶状态
+#[tauri::command]
+pub fn toggle_plugin_window_always_on_top(
+    window: tauri::WebviewWindow,
+) -> Result<bool, String> {
+    eprintln!("[Window] Toggling always_on_top for window: {}", window.label());
+    
+    // 获取当前置顶状态
+    let current_state = window.is_always_on_top().unwrap_or(false);
+    let new_state = !current_state;
+    
+    // 设置新的置顶状态
+    window.set_always_on_top(new_state).map_err(|e| {
+        eprintln!("[Window] Failed to set always_on_top: {}", e);
+        e.to_string()
+    })?;
+    
+    eprintln!("[Window] Window {} always_on_top: {} -> {}", window.label(), current_state, new_state);
+    
+    Ok(new_state)
 }
 
 #[tauri::command]

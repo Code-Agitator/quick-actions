@@ -36,7 +36,21 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
-            let plugin_manager = PluginManager::new().expect("Failed to initialize plugin manager");
+            let mut plugin_manager = PluginManager::new().expect("Failed to initialize plugin manager");
+            
+            // 【关键修复】在注册前立即扫描插件，确保启动时插件已加载
+            log::info!("[Setup] Scanning plugins during initialization...");
+            match plugin_manager.scan_plugins() {
+                Ok(plugins) => {
+                    log::info!("[Setup] ✓ Loaded {} plugins during startup", plugins.len());
+                    for plugin in &plugins {
+                        log::info!("[Setup]   - {} ({})", plugin.id, plugin.name);
+                    }
+                }
+                Err(e) => {
+                    log::error!("[Setup] ✗ Failed to scan plugins: {}", e);
+                }
+            }
 
             // 【关键修复】先注册 AppState，再创建窗口，防止前端在窗口初始化时调用命令报错
             log::info!("[Setup] Registering AppState...");
@@ -233,6 +247,20 @@ pub fn run() {
             // 不设置焦点自动隐藏，改为在 open_plugin_window 中显式隐藏主窗口
             // 这样避免了焦点事件处理的竞态问题
             eprintln!("[Tauri] Main window focus event handler: DISABLED (handled explicitly in commands)");
+            
+            // 【新特性】主窗体失焦时隐藏
+            if let Some(window) = app.get_webview_window("main") {
+                let window_clone = window.clone();
+                window.on_window_event(move |event| {
+                    if let tauri::WindowEvent::Focused(focused) = event {
+                        if !focused {
+                            eprintln!("[Window] Main window lost focus, hiding...");
+                            let _ = window_clone.hide();
+                        }
+                    }
+                });
+                eprintln!("[Window] Focus loss handler registered for main window");
+            }
 
             Ok(())
         })
@@ -247,6 +275,7 @@ pub fn run() {
             commands::open_plugin_window,
             commands::close_plugin_window,
             commands::close_all_plugin_windows,
+            commands::toggle_plugin_window_always_on_top,  // 【新特性】切换插件窗口置顶
             commands::set_main_window_size,
             commands::get_plugin_path,
             commands::reload_plugins,

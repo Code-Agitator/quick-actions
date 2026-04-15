@@ -5,6 +5,7 @@ import { SearchResultList } from "./components/SearchResultList";
 import { Settings } from "./components/Settings";
 import { usePlugins } from "./hooks/usePlugins";
 import { useApplications } from "./hooks/useApplications";
+import { useAppSettings } from "./hooks/useAppSettings";
 import { SearchResult } from "./types/searchResult";
 import { searchCache } from "./utils/searchCache";
 import { useDebug } from "./context/DebugContext";
@@ -19,6 +20,8 @@ function App() {
   const searchBarRef = useRef<SearchBarRef>(null);
   const { plugins } = usePlugins();
   const { applications, reload: reloadApplications } = useApplications();
+  // 确保主题在应用启动时初始化（useAppSettings 的 useEffect 会自动应用主题）
+  useAppSettings();
   const { settings: debugSettings } = useDebug();
 
   // 同步 debug 设置到 debugLogger

@@ -200,6 +200,11 @@ impl PluginManager {
         self.plugins.get(id)
     }
 
+    /// 获取所有已加载的插件（不重新扫描）
+    pub fn get_all_plugins(&self) -> Vec<PluginMetadata> {
+        self.plugins.values().cloned().collect()
+    }
+
     pub fn install_plugin(&mut self, source_path: &str) -> Result<(), String> {
         let source = PathBuf::from(source_path);
         if !source.exists() {

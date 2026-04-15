@@ -1,7 +1,7 @@
 import { useState, useEffect, ReactElement, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Plugin } from '../types/plugin';
-import { X } from 'lucide-react';
+import { X, Pin } from 'lucide-react';
 import { createActionsAPI } from '../utils/actionsAPI';
 
 interface PluginUIProps {
@@ -20,6 +20,7 @@ export function PluginUI({ plugin, onClose }: PluginUIProps) {
   const [pluginModule, setPluginModule] = useState<JSPluginUI | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isPinned, setIsPinned] = useState(false); // 【新特性】置顶状态
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -127,34 +128,67 @@ export function PluginUI({ plugin, onClose }: PluginUIProps) {
     }
   }, [pluginModule, plugin.id]);
 
+  // 【新特性】切换窗口置顶状态
+  const handleTogglePin = async () => {
+    try {
+      const newState = await invoke<boolean>('toggle_plugin_window_always_on_top');
+      setIsPinned(newState);
+      console.log('[PluginUI] Window pinned:', newState);
+    } catch (error) {
+      console.error('[PluginUI] Failed to toggle pin:', error);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col h-screen ios-frosted">
       {/* 头部 - iOS 风格毛玻璃（紧凑版 + 可拖拽） */}
       <div 
-        className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-white/10 bg-transparent backdrop-blur-xl select-none"
+        className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-gray-200/50 dark:border-white/10 bg-transparent backdrop-blur-xl select-none"
         data-tauri-drag-region
         style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
       >
         <div className="flex items-center gap-3">
-          <div className="text-2xl p-2 bg-gradient-to-br from-blue-500/80 to-purple-600/80 rounded-md shadow-lg backdrop-blur-sm border border-white/10">
+          <div className="text-2xl p-2 bg-gradient-to-br from-blue-500/80 to-purple-600/80 rounded-md shadow-lg backdrop-blur-sm border border-gray-200/50 dark:border-white/10">
             {plugin.icon || '🔌'}
           </div>
           <div>
-            <h2 className="text-base font-bold text-gray-100 tracking-tight">
+            <h2 className="text-base font-bold text-gray-900 dark:text-gray-100 tracking-tight">
               {plugin.name}
             </h2>
-            <p className="text-xs text-gray-400/80 mt-0.5 line-clamp-1">
+            <p className="text-xs text-gray-600 dark:text-gray-400/80 mt-0.5 line-clamp-1">
               {plugin.description}
             </p>
           </div>
         </div>
-        <button
-          onClick={onClose}
-          className="p-2 rounded-md hover:bg-white/10 transition-colors duration-150 group"
-          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-        >
-          <X className="w-5 h-5 text-gray-400 group-hover:text-red-400 transition-colors" />
-        </button>
+        <div className="flex items-center gap-2">
+          {/* 【新特性】置顶按钮 */}
+          <button
+            onClick={handleTogglePin}
+            className={`p-2 rounded-md transition-colors duration-150 group ${
+              isPinned 
+                ? 'bg-blue-500/20 hover:bg-blue-500/30' 
+                : 'hover:bg-black/5 dark:hover:bg-white/10'
+            }`}
+            style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+            title={isPinned ? '取消置顶' : '置顶窗口'}
+          >
+            <Pin 
+              className={`w-5 h-5 transition-colors ${
+                isPinned 
+                  ? 'text-blue-400 fill-blue-400' 
+                  : 'text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-200'
+              }`} 
+            />
+          </button>
+          {/* 关闭按钮 */}
+          <button
+            onClick={onClose}
+            className="p-2 rounded-md hover:bg-black/5 dark:hover:bg-white/10 transition-colors duration-150 group"
+            style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+          >
+            <X className="w-5 h-5 text-gray-500 dark:text-gray-400 group-hover:text-red-500 dark:group-hover:text-red-400 transition-colors" />
+          </button>
+        </div>
       </div>
 
       {/* 内容区域 */}
