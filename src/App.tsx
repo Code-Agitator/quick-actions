@@ -117,26 +117,31 @@ function App() {
         const currentValue = input.value;
         console.log('[App] Found existing query:', currentValue, '- re-triggering search');
         
-        // 关键：先清空再设置，强制 React 检测到变化并触发 useEffect
-        setQuery('');
-        setIsExpanded(false);
+        // 直接设置状态，不经过清空步骤，避免窗口抽搐
+        setQuery(currentValue);
+        setIsExpanded(true);
         
-        // 下一帧再设置真实值，确保触发更新
-        requestAnimationFrame(() => {
-          setQuery(currentValue);
-          setIsExpanded(true);
-          console.log('[App] Query set to:', currentValue, ', expanded:', true);
-        });
+        // 关键：手动调用窗口大小调整，确保窗口展开
+        // 这样可以绕过 React 的优化，直接执行
+        invoke('set_main_window_size', { height: 480 })
+          .then(() => {
+            console.log('[App] Window expanded to 480px');
+          })
+          .catch(err => {
+            console.error('[App] Failed to expand window:', err);
+          });
         
         // 选中文本（延迟确保状态更新完成）
         setTimeout(() => {
           input.select();
           console.log('[App] Text selected');
-        }, 100);
+        }, 50);
       } else {
         console.log('[App] No existing query, keeping window collapsed');
         // 如果没有内容，保持收起状态
         setIsExpanded(false);
+        invoke('set_main_window_size', { height: 64 })
+          .catch(err => console.error('[App] Failed to collapse window:', err));
       }
     };
     
