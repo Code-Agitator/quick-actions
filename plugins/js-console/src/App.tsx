@@ -23,6 +23,11 @@ interface VariableInfo {
   properties?: string[];  // 属性名列表
   methods?: string[];     // 方法名列表
   prototype?: string;     // 原型名称
+  size?: number;          // 数组/对象/Map/Set的大小
+  length?: number;        // 字符串/数组长度
+  keys?: string[];        // 对象的键列表
+  descriptors?: Record<string, PropertyDescriptor>; // 属性描述符
+  isCircular?: boolean;   // 是否循环引用
 }
 
 // 特殊对象处理器接口
@@ -139,7 +144,30 @@ const introspectObject = (obj: any) => {
   };
 };
 
-const App: React.FC<AppProps> = ({ query, onResult }) => {
+// 检测循环引用
+const detectCircularReferences = (obj: any, seen = new WeakSet()): boolean => {
+  if (obj !== null && typeof obj === 'object') {
+    if (seen.has(obj)) {
+      return true;
+    }
+    seen.add(obj);
+    
+    if (Array.isArray(obj)) {
+      for (let item of obj) {
+        if (detectCircularReferences(item, seen)) return true;
+      }
+    } else {
+      for (let key in obj) {
+        if (obj.hasOwnProperty(key)) {
+          if (detectCircularReferences(obj[key], seen)) return true;
+        }
+      }
+    }
+  }
+  return false;
+};
+
+const App: React.FC<AppProps> = ({ query: _query, onResult: _onResult }) => {
   const [code, setCode] = useState('');
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
@@ -195,6 +223,10 @@ const App: React.FC<AppProps> = ({ query, onResult }) => {
     let properties: string[] | undefined;
     let methods: string[] | undefined;
     let prototype: string | undefined;
+    let size: number | undefined;
+    let length: number | undefined;
+    let keys: string[] | undefined;
+    let isCircular: boolean | undefined;
     
     if (handler) {
       // 使用特殊处理器
@@ -206,10 +238,13 @@ const App: React.FC<AppProps> = ({ query, onResult }) => {
           children = Array.from(value.entries()).slice(0, 20).map(([key, val], idx) => 
             analyzeValue(`[${idx}]`, { key, value: val }, depth + 1)
           );
+          size = value.size;
+          keys = Array.from(value.keys()).map(k => String(k));
         } else if (value instanceof Set) {
           children = Array.from(value).slice(0, 20).map((item, idx) => 
             analyzeValue(`[${idx}]`, item, depth + 1)
           );
+          size = value.size;
         }
       }
     } else {
@@ -217,10 +252,15 @@ const App: React.FC<AppProps> = ({ query, onResult }) => {
       type = typeof value;
       
       if (depth < 3 && type === 'object' && value !== null) {
+        // 检测循环引用
+        isCircular = detectCircularReferences(value);
+        
         if (Array.isArray(value)) {
           children = value.slice(0, 20).map((item, idx) => 
             analyzeValue(`[${idx}]`, item, depth + 1)
           );
+          length = value.length;
+          size = value.length;
         } else {
           // 对普通对象进行内省
           const introspection = introspectObject(value);
@@ -233,7 +273,11 @@ const App: React.FC<AppProps> = ({ query, onResult }) => {
           children = Object.entries(value).slice(0, 20).map(([key, val]) => 
             analyzeValue(key, val, depth + 1)
           );
+          keys = Object.keys(value);
+          size = Object.keys(value).length;
         }
+      } else if (type === 'string') {
+        length = value.length;
       }
     }
     
@@ -246,6 +290,10 @@ const App: React.FC<AppProps> = ({ query, onResult }) => {
       properties,
       methods,
       prototype,
+      size,
+      length,
+      keys,
+      isCircular,
     };
 
     return info;
@@ -296,28 +344,39 @@ const App: React.FC<AppProps> = ({ query, onResult }) => {
     // 创建安全的执行环境
     try {
       // 捕获控制台输出
-      const outputs: string[] = [];
+      const outputs: Array<{type: string, content: string}> = [];
       const originalLog = console.log;
       const originalError = console.error;
       const originalWarn = console.warn;
       const originalInfo = console.info;
 
       console.log = (...args: any[]) => {
-        outputs.push(args.map(arg => 
-          typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
-        ).join(' '));
+        const content = args.map(arg => {
+          if (typeof arg === 'object' && arg !== null) {
+            try {
+              return JSON.stringify(arg, null, 2);
+            } catch (e) {
+              return String(arg);
+            }
+          }
+          return String(arg);
+        }).join(' ');
+        outputs.push({type: 'log', content});
       };
 
       console.error = (...args: any[]) => {
-        outputs.push(args.map(arg => String(arg)).join(' '));
+        const content = args.map(arg => String(arg)).join(' ');
+        outputs.push({type: 'error', content});
       };
 
       console.warn = (...args: any[]) => {
-        outputs.push(args.map(arg => String(arg)).join(' '));
+        const content = args.map(arg => String(arg)).join(' ');
+        outputs.push({type: 'warn', content});
       };
 
       console.info = (...args: any[]) => {
-        outputs.push(args.map(arg => String(arg)).join(' '));
+        const content = args.map(arg => String(arg)).join(' ');
+        outputs.push({type: 'info', content});
       };
 
       // 使用 Function 构造器创建沙箱环境，保持上下文
@@ -333,7 +392,10 @@ const App: React.FC<AppProps> = ({ query, onResult }) => {
         }
       `);
 
+      const startTime = performance.now();
       const result = func(...contextValues);
+      const endTime = performance.now();
+      const executionTime = (endTime - startTime).toFixed(2);
 
       // 恢复原始控制台
       console.log = originalLog;
@@ -345,7 +407,12 @@ const App: React.FC<AppProps> = ({ query, onResult }) => {
       outputs.forEach(output => {
         setConsoleEntries(prev => [
           ...prev,
-          { type: 'output', content: output, timestamp: new Date() }
+          { 
+            type: 'output', 
+            content: output.content, 
+            timestamp: new Date(),
+            isError: output.type === 'error'
+          }
         ]);
       });
 
@@ -355,7 +422,7 @@ const App: React.FC<AppProps> = ({ query, onResult }) => {
           ...prev,
           { 
             type: 'output', 
-            content: formatValue(result),
+            content: `${formatValue(result)} \n[Execution time: ${executionTime}ms]`,
             timestamp: new Date(),
             isError: false
           }
@@ -409,7 +476,7 @@ const App: React.FC<AppProps> = ({ query, onResult }) => {
         ...prev,
         {
           type: 'output',
-          content: error.message || String(error),
+          content: `❌ Error: ${error.message || String(error)}\nStack: ${error.stack || 'No stack trace available'}`,
           timestamp: new Date(),
           isError: true
         }
@@ -422,31 +489,7 @@ const App: React.FC<AppProps> = ({ query, onResult }) => {
     executeCodeRef.current = executeCode;
   }, [executeCode]);
 
-  // 键盘快捷键
-  const handleEditorKeyDown = (e: any) => {
-    // Ctrl/Cmd + Enter 执行
-    if ((e.ctrlKey || e.metaKey) && e.keyCode === 13) {
-      e.preventDefault();
-      executeCode();
-    }
-    // 上箭头 - 历史上一条
-    else if (e.keyCode === 38 && history.length > 0) {
-      const newIndex = historyIndex === -1 ? history.length - 1 : Math.max(0, historyIndex - 1);
-      setHistoryIndex(newIndex);
-      setCode(history[newIndex]);
-    }
-    // 下箭头 - 历史下一条
-    else if (e.keyCode === 40 && history.length > 0) {
-      const newIndex = historyIndex === -1 ? -1 : Math.min(history.length - 1, historyIndex + 1);
-      if (newIndex === -1) {
-        setHistoryIndex(-1);
-        setCode('');
-      } else {
-        setHistoryIndex(newIndex);
-        setCode(history[newIndex]);
-      }
-    }
-  };
+
 
   // 切换变量展开状态
   const toggleVariable = (path: string[]) => {
@@ -487,6 +530,20 @@ const App: React.FC<AppProps> = ({ query, onResult }) => {
         variableValue = String(variable.value);
       }
       
+      // 构建显示标签，包含更多信息
+      let displayLabel = variable.name;
+      if (variable.size !== undefined) {
+        displayLabel += ` (${variable.size} items)`;
+      } else if (variable.length !== undefined) {
+        displayLabel += ` (${variable.length} chars)`;
+      }
+      
+      // 添加类型提示
+      let typeHint = variable.type;
+      if (variable.prototype && variable.type === 'object') {
+        typeHint = `${variable.prototype}`;
+      }
+      
       return (
         <div key={`${path.join('.')}-${index}`} style={{ marginLeft: level * 16 }}>
           <div
@@ -513,7 +570,7 @@ const App: React.FC<AppProps> = ({ query, onResult }) => {
             {!variable.children && <span className="w-4" />}
             
             <span className="text-purple-600 dark:text-purple-400 font-mono text-sm flex-1">
-              {variable.name}
+              {displayLabel}
             </span>
             
             <span className="text-gray-400 text-xs">:</span>
@@ -533,6 +590,18 @@ const App: React.FC<AppProps> = ({ query, onResult }) => {
             }`}>
               {formatValue(variable.value)}
             </span>
+            
+            {/* 类型标签 */}
+            <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-gray-700 px-1 rounded">
+              {typeHint}
+            </span>
+            
+            {/* 循环引用警告 */}
+            {variable.isCircular && (
+              <span className="text-xs text-red-500 dark:text-red-400 bg-red-100 dark:bg-red-900/30 px-1 rounded" title="Circular reference detected">
+                ⚠️
+              </span>
+            )}
             
             {/* 拷贝按钮 */}
             <button
@@ -576,6 +645,31 @@ const App: React.FC<AppProps> = ({ query, onResult }) => {
     }
   };
 
+  // 插入代码片段
+  const insertSnippet = (snippet: string) => {
+    if (editorRef.current) {
+      const position = editorRef.current.getPosition();
+      editorRef.current.executeEdits('snippet', [{
+        range: new (window as any).monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+        text: snippet,
+        forceMoveMarkers: true
+      }]);
+      editorRef.current.focus();
+    }
+  };
+
+  // 常用代码片段
+  const snippets = [
+    { label: 'console.log', value: 'console.log($1);' },
+    { label: 'for loop', value: 'for (let i = 0; i < $1.length; i++) {\n  $2\n}' },
+    { label: 'forEach', value: '$1.forEach(item => {\n  $2\n});' },
+    { label: 'map', value: '$1.map(item => $2)' },
+    { label: 'filter', value: '$1.filter(item => $2)' },
+    { label: 'reduce', value: '$1.reduce((acc, item) => {\n  $2\n}, $3)' },
+    { label: 'try/catch', value: 'try {\n  $1\n} catch (error) {\n  console.error(error);\n}' },
+    { label: 'async/await', value: 'async function() {\n  try {\n    const result = await $1;\n    return result;\n  } catch (error) {\n    console.error(error);\n  }\n}' },
+  ];
+
   // 拷贝到剪贴板
   const copyToClipboard = async (text: string, label: string = 'Content') => {
     try {
@@ -618,6 +712,21 @@ const App: React.FC<AppProps> = ({ query, onResult }) => {
         </div>
       </div>
 
+      {/* 代码片段工具栏 */}
+      <div className="flex-shrink-0 px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-700 flex items-center gap-2 overflow-x-auto">
+        <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">Snippets:</span>
+        {snippets.map((snippet, index) => (
+          <button
+            key={index}
+            onClick={() => insertSnippet(snippet.value)}
+            className="px-2 py-1 text-xs bg-white dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors whitespace-nowrap"
+            title={`Insert ${snippet.label} snippet`}
+          >
+            {snippet.label}
+          </button>
+        ))}
+      </div>
+
       {/* 主内容区 */}
       <div className="flex-1 flex overflow-hidden">
         {/* 左侧：代码编辑器和输出 */}
@@ -628,7 +737,7 @@ const App: React.FC<AppProps> = ({ query, onResult }) => {
               <div className="flex items-center gap-2">
                 <span className="text-xs font-mono text-green-600 dark:text-green-400">{`>`}</span>
                 <span className="text-xs text-gray-500 dark:text-gray-400">
-                  {isMultiLine ? 'Multi-line mode (Shift+Enter to execute)' : 'Single-line mode (Enter to execute)'}
+                  {isMultiLine ? 'Multi-line mode (Enter for new line)' : 'Single-line mode (Enter to execute)'}
                 </span>
               </div>
               <button
@@ -648,42 +757,76 @@ const App: React.FC<AppProps> = ({ query, onResult }) => {
               onMount={(editor, monaco) => {
                 editorRef.current = editor;
                 
-                // 浏览器控制台风格：Enter 执行，Shift+Enter 换行
-                editor.addCommand(monaco.KeyCode.Enter, () => {
-                  if (isMultiLine) {
-                    // 多行模式：需要 Shift+Enter 才执行
-                    return; // Monaco 默认行为：插入换行
-                  } else {
-                    // 单行模式：Enter 直接执行
-                    executeCodeRef.current();
-                  }
-                });
+                // 优化的快捷键设计 - 符合开发者习惯
                 
-                // Shift+Enter 在多行模式下执行
-                editor.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.Enter, () => {
-                  if (isMultiLine) {
-                    executeCodeRef.current();
-                  } else {
-                    // 单行模式下 Shift+Enter 也执行
-                    executeCodeRef.current();
-                  }
-                });
-                
-                // Ctrl+Enter 始终执行（兼容）
+                // Ctrl/Cmd + Enter: 始终执行代码（最常用操作）
                 editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
                   executeCodeRef.current();
                 });
                 
-                // 配置箭头键历史记录
-                editor.addCommand(monaco.KeyCode.UpArrow, () => {
+                // Shift + Enter: 在多行模式下执行，单行模式下换行
+                editor.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.Enter, () => {
+                  if (isMultiLine) {
+                    // 多行模式：Shift+Enter 执行代码
+                    executeCodeRef.current();
+                  }
+                  // 单行模式：不拦截，让 Monaco 默认行为（换行）生效
+                });
+                
+                // Enter: 根据模式决定行为
+                editor.addCommand(monaco.KeyCode.Enter, () => {
+                  if (!isMultiLine) {
+                    // 单行模式：Enter 执行代码（类似浏览器控制台）
+                    executeCodeRef.current();
+                  }
+                  // 多行模式：不拦截，让 Monaco 默认行为（换行）生效
+                });
+                
+                // Ctrl + L: 清空控制台（浏览器控制台标准快捷键）
+                editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyL, () => {
+                  clearConsole();
+                });
+                
+                // Ctrl + K: 清空编辑器内容
+                editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK, () => {
+                  setCode('');
+                  editor.focus();
+                });
+                
+                // Ctrl + D: 复制当前行（VS Code标准快捷键）
+                editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyD, () => {
+                  const action = editor.getAction('editor.action.copyLinesDownAction');
+                  if (action) action.run();
+                });
+                
+                // Alt + Up/Down: 移动行（VS Code标准快捷键，不干扰光标移动）
+                editor.addCommand(monaco.KeyMod.Alt | monaco.KeyCode.UpArrow, () => {
+                  const action = editor.getAction('editor.action.moveLinesUpAction');
+                  if (action) action.run();
+                });
+                
+                editor.addCommand(monaco.KeyMod.Alt | monaco.KeyCode.DownArrow, () => {
+                  const action = editor.getAction('editor.action.moveLinesDownAction');
+                  if (action) action.run();
+                });
+                
+                // Ctrl + Up/Down: 浏览命令历史（不干扰光标移动）
+                editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.UpArrow, () => {
                   if (history.length > 0) {
                     const newIndex = historyIndex === -1 ? history.length - 1 : Math.max(0, historyIndex - 1);
                     setHistoryIndex(newIndex);
                     setCode(history[newIndex]);
+                    // 将光标移到末尾
+                    const model = editor.getModel();
+                    if (model) {
+                      const lineCount = model.getLineCount();
+                      const lastColumn = model.getLineMaxColumn(lineCount);
+                      editor.setPosition({ lineNumber: lineCount, column: lastColumn });
+                    }
                   }
                 });
                 
-                editor.addCommand(monaco.KeyCode.DownArrow, () => {
+                editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.DownArrow, () => {
                   if (history.length > 0) {
                     const newIndex = historyIndex === -1 ? -1 : Math.min(history.length - 1, historyIndex + 1);
                     if (newIndex === -1) {
@@ -692,6 +835,13 @@ const App: React.FC<AppProps> = ({ query, onResult }) => {
                     } else {
                       setHistoryIndex(newIndex);
                       setCode(history[newIndex]);
+                      // 将光标移到末尾
+                      const model = editor.getModel();
+                      if (model) {
+                        const lineCount = model.getLineCount();
+                        const lastColumn = model.getLineMaxColumn(lineCount);
+                        editor.setPosition({ lineNumber: lineCount, column: lastColumn });
+                      }
                     }
                   }
                 });
@@ -723,6 +873,50 @@ const App: React.FC<AppProps> = ({ query, onResult }) => {
                 },
                 overviewRulerLanes: 0,
                 hideCursorInOverviewRuler: true,
+                // 增强的开发者体验
+                suggest: {
+                  showWords: true,
+                  showSnippets: true,
+                  showMethods: true,
+                  showFunctions: true,
+                  showConstructors: true,
+                  showFields: true,
+                  showVariables: true,
+                  showClasses: true,
+                  showStructs: true,
+                  showInterfaces: true,
+                  showModules: true,
+                  showProperties: true,
+                  showEvents: true,
+                  showOperators: true,
+                  showUnits: true,
+                  showValues: true,
+                  showConstants: true,
+                  showEnums: true,
+                  showEnumMembers: true,
+                  showKeywords: true,
+                  showColors: true,
+                  showFiles: true,
+                  showReferences: true,
+                  showFolders: true,
+                  showTypeParameters: true,
+                  showIssues: true,
+                  showUsers: true,
+                },
+                // 自动补全增强
+                acceptSuggestionOnCommitCharacter: true,
+                acceptSuggestionOnEnter: 'on',
+                snippetSuggestions: 'inline',
+                // 代码折叠
+                folding: true,
+                foldingStrategy: 'indentation',
+                // 括号匹配
+                matchBrackets: 'always',
+                // 自动闭合括号
+                autoClosingBrackets: 'always',
+                autoClosingQuotes: 'always',
+                // 代码 lens
+                codeLens: true,
               }}
             />
             <div className="px-3 py-2 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
@@ -894,6 +1088,28 @@ const App: React.FC<AppProps> = ({ query, onResult }) => {
                     </div>
                   )}
 
+                  {/* 大小/长度信息 */}
+                  {(selectedVar.size !== undefined || selectedVar.length !== undefined) && (
+                    <div className="bg-white dark:bg-gray-900 rounded p-3 border border-gray-200 dark:border-gray-700">
+                      <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Size/Length</div>
+                      <div className="font-mono text-sm text-gray-700 dark:text-gray-300">
+                        {selectedVar.size !== undefined && `Size: ${selectedVar.size} items`}
+                        {selectedVar.size !== undefined && selectedVar.length !== undefined && ' | '}
+                        {selectedVar.length !== undefined && `Length: ${selectedVar.length}`}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 循环引用警告 */}
+                  {selectedVar.isCircular && (
+                    <div className="bg-red-50 dark:bg-red-900/20 rounded p-3 border border-red-200 dark:border-red-800">
+                      <div className="text-xs text-red-500 dark:text-red-400 mb-1">⚠️ Circular Reference Detected</div>
+                      <div className="text-xs text-red-600 dark:text-red-300">
+                        This object contains circular references which may cause issues with serialization.
+                      </div>
+                    </div>
+                  )}
+
                   {/* 值预览 */}
                   <div className="bg-white dark:bg-gray-900 rounded p-3 border border-gray-200 dark:border-gray-700">
                     <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Value</div>
@@ -901,6 +1117,29 @@ const App: React.FC<AppProps> = ({ query, onResult }) => {
                       {formatValue(selectedVar.value)}
                     </div>
                   </div>
+
+                  {/* 键列表 */}
+                  {selectedVar.keys && selectedVar.keys.length > 0 && (
+                    <div className="bg-white dark:bg-gray-900 rounded p-3 border border-gray-200 dark:border-gray-700">
+                      <div className="text-xs text-gray-500 dark:text-gray-400 mb-2 flex items-center justify-between">
+                        <span>Keys ({selectedVar.keys.length})</span>
+                        <button
+                          onClick={() => copyToClipboard(selectedVar.keys!.join('\n'), 'Keys')}
+                          className="px-2 py-0.5 text-xs bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded"
+                          title="Copy keys"
+                        >
+                          📋
+                        </button>
+                      </div>
+                      <div className="space-y-1 max-h-40 overflow-y-auto">
+                        {selectedVar.keys.map((key, idx) => (
+                          <div key={idx} className="text-xs font-mono text-indigo-600 dark:text-indigo-400 py-0.5 px-2 bg-indigo-50 dark:bg-indigo-900/20 rounded">
+                            {key}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* 属性列表 */}
                   {selectedVar.properties && selectedVar.properties.length > 0 && (
@@ -975,8 +1214,8 @@ const App: React.FC<AppProps> = ({ query, onResult }) => {
         </div>
         <div className="text-[10px] opacity-80">
           {isMultiLine 
-            ? 'Enter: New line • Shift+Enter/Ctrl+Enter: Execute • ↑↓ History'
-            : 'Enter: Execute • Shift+Enter: New line • ↑↓ History'
+            ? 'Ctrl+Enter: Execute • Shift+Enter: Execute • Enter: New line • Ctrl+↑↓: History • Ctrl+L: Clear Console'
+            : 'Enter: Execute • Ctrl+Enter: Execute • Shift+Enter: New line • Ctrl+↑↓: History • Ctrl+L: Clear Console'
           }
         </div>
       </div>
