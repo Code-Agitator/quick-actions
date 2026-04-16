@@ -45,29 +45,57 @@ fn matches_search(text: &str, query: &str) -> bool {
         return true;
     }
     
-    // 2. 子序列模糊匹配 (例如: et -> everything)
+    // 2. 单词首字母匹配 (例如: goc -> google chrome, gc -> google chrome)
+    if matches_word_initials(&text_lower, &query_lower) {
+        return true;
+    }
+    
+    // 3. 子序列模糊匹配 (例如: et -> everything, goc -> google chrome)
     if is_subsequence(&query_lower, &text_lower) {
         return true;
     }
 
-    // 3. 宽松字符匹配：只要目标包含查询中的所有字符即可 (例如: evet -> everything)
+    // 4. 宽松字符匹配：只要目标包含查询中的所有字符即可 (例如: evet -> everything)
     if contains_all_chars(&query_lower, &text_lower) {
         return true;
     }
     
-    // 4. 拼音首字母匹配
+    // 5. 拼音首字母匹配
     let initials = to_pinyin_initials(text);
     if initials.contains(&query_lower) || is_subsequence(&query_lower, &initials) {
         return true;
     }
     
-    // 5. 完整拼音匹配
+    // 6. 完整拼音匹配
     let full_pinyin = to_pinyin_full(text);
     if full_pinyin.contains(&query_lower) || is_subsequence(&query_lower, &full_pinyin) {
         return true;
     }
     
     false
+}
+
+/// 检查是否匹配单词首字母
+/// 例如: "goc" 匹配 "google chrome" (g-o-c)
+/// 例如: "gc" 匹配 "google chrome" (g-c)
+fn matches_word_initials(text: &str, query: &str) -> bool {
+    if query.is_empty() {
+        return true;
+    }
+    
+    // 提取所有单词的首字母
+    let words: Vec<&str> = text.split_whitespace().collect();
+    let mut initials = String::new();
+    for word in words {
+        if let Some(first_char) = word.chars().next() {
+            if first_char.is_alphanumeric() {
+                initials.push(first_char);
+            }
+        }
+    }
+    
+    // 检查查询是否是首字母的子序列
+    is_subsequence(query, &initials)
 }
 
 /// 检查 target 是否包含 query 中的所有字符（忽略顺序）

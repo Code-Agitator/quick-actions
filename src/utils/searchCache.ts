@@ -108,37 +108,207 @@ export class SearchCache {
    */
   private performSearch(query: string): SearchResult[] {
     const queryLower = query.toLowerCase();
-    const results: SearchResult[] = [];
+    const results: Array<{ result: SearchResult; score: number }> = [];
 
     for (const item of this.index.values()) {
-      if (this.matches(item, queryLower)) {
-        results.push(item.result);
+      const score = this.calculateMatchScore(item, queryLower);
+      if (score > 0) {
+        results.push({ result: item.result, score });
       }
     }
 
-    return results;
+    // 按匹配度排序（分数高的在前）
+    results.sort((a, b) => b.score - a.score);
+
+    return results.map(r => r.result);
+  }
+
+  /**
+   * 计算匹配度分数
+   * 分数越高表示匹配度越好
+   */
+  private calculateMatchScore(item: SearchIndexItem, queryLower: string): number {
+    if (!queryLower) return 0;
+
+    let score = 0;
+
+    // 1. 直接包含匹配 - 最高分 (100分)
+    if (item.titleLower.includes(queryLower)) {
+      // 连续匹配的字符越多，分数越高
+      const matchLength = queryLower.length;
+      score = Math.max(score, 100 + matchLength);
+      
+      // 如果从开头开始匹配，额外加分
+      if (item.titleLower.startsWith(queryLower)) {
+        score += 20;
+      }
+      
+      // 如果是完整单词匹配，额外加分
+      const words = item.titleLower.split(/\s+/);
+      if (words.some(word => word === queryLower)) {
+        score += 15;
+      }
+      
+      return score;
+    }
+
+    // 2. 单词首字母匹配 - 高分 (80-95分)
+    if (this.matchesWordInitials(item.titleLower, queryLower)) {
+      const initials = this.getWordInitials(item.titleLower);
+      // 检查是否是连续的子序列
+      const isConsecutive = this.isConsecutiveSubsequence(queryLower, initials);
+      score = Math.max(score, isConsecutive ? 95 : 85);
+      
+      // 查询长度占首字母长度的比例越高，分数越高
+      const ratio = queryLower.length / initials.length;
+      score += ratio * 10;
+      
+      return score;
+    }
+
+    // 3. 子序列模糊匹配 - 中等分数 (60-80分)
+    if (this.isSubsequence(queryLower, item.titleLower)) {
+      // 计算匹配的紧密程度
+      const gapScore = this.calculateGapScore(queryLower, item.titleLower);
+      score = Math.max(score, 60 + gapScore);
+      
+      return score;
+    }
+
+    // 4. 拼音首字母匹配 - 中等分数 (50-70分)
+    if (item.titleInitials.includes(queryLower) || this.isSubsequence(queryLower, item.titleInitials)) {
+      const isConsecutive = item.titleInitials.includes(queryLower);
+      score = Math.max(score, isConsecutive ? 70 : 55);
+      
+      return score;
+    }
+
+    // 5. 完整拼音匹配 - 较低分数 (40-60分)
+    if (item.titlePinyin.includes(queryLower) || this.isSubsequence(queryLower, item.titlePinyin)) {
+      const isConsecutive = item.titlePinyin.includes(queryLower);
+      score = Math.max(score, isConsecutive ? 60 : 45);
+      
+      return score;
+    }
+
+    return 0;
+  }
+
+  /**
+   * 获取单词首字母
+   */
+  private getWordInitials(text: string): string {
+    const words = text.split(/\s+/);
+    return words
+      .map(word => word[0])
+      .filter(char => char && /[a-z0-9]/.test(char))
+      .join('');
+  }
+
+  /**
+   * 检查是否是连续子序列
+   */
+  private isConsecutiveSubsequence(query: string, target: string): boolean {
+    return target.includes(query);
+  }
+
+  /**
+   * 计算间隙分数（匹配越紧密分数越高）
+   * 返回 0-20 的分数
+   */
+  private calculateGapScore(query: string, target: string): number {
+    let queryIndex = 0;
+    let lastMatchIndex = -1;
+    let totalGap = 0;
+    let matches = 0;
+
+    for (let i = 0; i < target.length && queryIndex < query.length; i++) {
+      if (target[i] === query[queryIndex]) {
+        if (lastMatchIndex !== -1) {
+          totalGap += i - lastMatchIndex - 1;
+        }
+        lastMatchIndex = i;
+        queryIndex++;
+        matches++;
+      }
+    }
+
+    if (matches === 0) return 0;
+
+    // 平均间隙越小，分数越高
+    const avgGap = totalGap / (matches - 1 || 1);
+    const maxScore = 20;
+    
+    // 间隙为0时得满分，间隙越大分数越低
+    return Math.max(0, maxScore - avgGap * 2);
   }
 
   /**
    * 匹配检查
    */
   private matches(item: SearchIndexItem, queryLower: string): boolean {
-    // 标题直接匹配
+    // 1. 标题直接匹配
     if (item.titleLower.includes(queryLower)) {
       return true;
     }
 
-    // 拼音首字母匹配
-    if (item.titleInitials.includes(queryLower)) {
+    // 2. 单词首字母匹配 (例如: goc -> google chrome)
+    if (this.matchesWordInitials(item.titleLower, queryLower)) {
       return true;
     }
 
-    // 完整拼音匹配
-    if (item.titlePinyin.includes(queryLower)) {
+    // 3. 子序列模糊匹配 (例如: et -> everything)
+    if (this.isSubsequence(queryLower, item.titleLower)) {
+      return true;
+    }
+
+    // 4. 拼音首字母匹配
+    if (item.titleInitials.includes(queryLower) || this.isSubsequence(queryLower, item.titleInitials)) {
+      return true;
+    }
+
+    // 5. 完整拼音匹配
+    if (item.titlePinyin.includes(queryLower) || this.isSubsequence(queryLower, item.titlePinyin)) {
       return true;
     }
 
     return false;
+  }
+
+  /**
+   * 检查是否匹配单词首字母
+   * 例如: "goc" 匹配 "google chrome" (g-o-c)
+   */
+  private matchesWordInitials(text: string, query: string): boolean {
+    if (!query) return true;
+    
+    // 提取所有单词的首字母
+    const words = text.split(/\s+/);
+    const initials = words
+      .map(word => word[0])
+      .filter(char => char && /[a-z0-9]/.test(char))
+      .join('');
+    
+    // 检查查询是否是首字母的子序列
+    return this.isSubsequence(query, initials);
+  }
+
+  /**
+   * 检查 query 是否是 target 的子序列
+   * 例如: "et" 是 "everything" 的子序列
+   */
+  private isSubsequence(query: string, target: string): boolean {
+    let queryIndex = 0;
+    let targetIndex = 0;
+    
+    while (queryIndex < query.length && targetIndex < target.length) {
+      if (query[queryIndex] === target[targetIndex]) {
+        queryIndex++;
+      }
+      targetIndex++;
+    }
+    
+    return queryIndex === query.length;
   }
 
   /**
