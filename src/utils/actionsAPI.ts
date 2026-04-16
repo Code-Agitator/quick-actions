@@ -256,6 +256,88 @@ interface EverythingAPI {
 }
 
 /**
+ * 进程信息
+ */
+interface ProcessInfo {
+  pid: number;
+  name: string;
+  cpu: number;
+  memory: number;
+  status: string;
+  user: string;
+  startTime: string;
+  commandLine: string;
+  threads: number;
+  handles: number;
+  ports?: number[];  // 占用的端口列表
+  files?: string[];  // 打开的文件列表
+}
+
+/**
+ * 进程管理 API
+ */
+interface ProcessAPI {
+  /**
+   * 获取所有进程列表
+   */
+  listProcesses: () => Promise<ProcessInfo[]>;
+  
+  /**
+   * 根据 PID 获取进程详情
+   * @param pid 进程 ID
+   */
+  getProcess: (pid: number) => Promise<ProcessInfo | null>;
+  
+  /**
+   * 根据名称搜索进程
+   * @param name 进程名称
+   */
+  searchByName: (name: string) => Promise<ProcessInfo[]>;
+  
+  /**
+   * 根据端口查找进程
+   * @param port 端口号
+   */
+  findByPort: (port: number) => Promise<ProcessInfo[]>;
+  
+  /**
+   * 根据文件路径查找占用该文件的进程
+   * @param filePath 文件路径
+   */
+  findByFile: (filePath: string) => Promise<ProcessInfo[]>;
+  
+  /**
+   * 终止进程
+   * @param pid 进程 ID
+   */
+  killProcess: (pid: number) => Promise<boolean>;
+  
+  /**
+   * 优雅地终止进程
+   * @param pid 进程 ID
+   */
+  gracefulKill: (pid: number) => Promise<boolean>;
+  
+  /**
+   * 获取进程的 CPU 和内存使用率
+   * @param pid 进程 ID
+   */
+  getProcessStats: (pid: number) => Promise<{ cpu: number; memory: number }>;
+  
+  /**
+   * 获取进程打开的文件句柄
+   * @param pid 进程 ID
+   */
+  getOpenFiles: (pid: number) => Promise<string[]>;
+  
+  /**
+   * 获取进程监听的端口
+   * @param pid 进程 ID
+   */
+  getListeningPorts: (pid: number) => Promise<number[]>;
+}
+
+/**
  * 本地存储 API
  */
 interface StorageAPI {
@@ -331,6 +413,11 @@ export interface ActionsAPI {
    * Everything 搜索
    */
   everything: EverythingAPI;
+  
+  /**
+   * 进程管理
+   */
+  process: ProcessAPI;
   
   /**
    * 配置管理
@@ -590,6 +677,98 @@ export function createActionsAPI(pluginId: string): ActionsAPI {
           return info;
         } catch (error) {
           console.error('[ACTIONS] Get file info failed:', error);
+          throw error;
+        }
+      }
+    },
+    
+    process: {
+      listProcesses: async () => {
+        try {
+          return await invoke<ProcessInfo[]>('process_list');
+        } catch (error) {
+          console.error('[ACTIONS] List processes failed:', error);
+          throw error;
+        }
+      },
+      
+      getProcess: async (pid: number) => {
+        try {
+          return await invoke<ProcessInfo | null>('process_get', { pid });
+        } catch (error) {
+          console.error('[ACTIONS] Get process failed:', error);
+          throw error;
+        }
+      },
+      
+      searchByName: async (name: string) => {
+        try {
+          return await invoke<ProcessInfo[]>('process_search_by_name', { name });
+        } catch (error) {
+          console.error('[ACTIONS] Search process by name failed:', error);
+          throw error;
+        }
+      },
+      
+      findByPort: async (port: number) => {
+        try {
+          return await invoke<ProcessInfo[]>('process_find_by_port', { port });
+        } catch (error) {
+          console.error('[ACTIONS] Find process by port failed:', error);
+          throw error;
+        }
+      },
+      
+      findByFile: async (filePath: string) => {
+        try {
+          return await invoke<ProcessInfo[]>('process_find_by_file', { filePath });
+        } catch (error) {
+          console.error('[ACTIONS] Find process by file failed:', error);
+          throw error;
+        }
+      },
+      
+      killProcess: async (pid: number) => {
+        try {
+          return await invoke<boolean>('process_kill', { pid });
+        } catch (error) {
+          console.error('[ACTIONS] Kill process failed:', error);
+          throw error;
+        }
+      },
+      
+      gracefulKill: async (pid: number) => {
+        try {
+          return await invoke<boolean>('process_graceful_kill', { pid });
+        } catch (error) {
+          console.error('[ACTIONS] Graceful kill process failed:', error);
+          throw error;
+        }
+      },
+      
+      getProcessStats: async (pid: number) => {
+        try {
+          return await invoke<{ cpu: number; memory: number }>('process_get_stats', { pid });
+        } catch (error) {
+          console.error('[ACTIONS] Get process stats failed:', error);
+          throw error;
+        }
+      },
+      
+      getOpenFiles: async (pid: number) => {
+        try {
+          return await invoke<string[]>('process_get_open_files', { pid });
+        } catch (error) {
+          console.error('[ACTIONS] Get open files failed:', error);
+          throw error;
+        }
+      },
+      
+      getListeningPorts: async (pid: number) => {
+        try {
+          return await invoke<number[]>('process_get_listening_ports', { pid });
+        } catch (error) {
+          console.error('[ACTIONS] Get listening ports failed:', error);
           throw error;
         }
       }

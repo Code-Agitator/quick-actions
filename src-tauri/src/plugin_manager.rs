@@ -5,7 +5,6 @@ use std::path::PathBuf;
 use walkdir::WalkDir;
 use notify::{Watcher, RecursiveMode, Event};
 use std::sync::mpsc::channel;
-use arboard::Clipboard;
 use std::sync::{Arc, Mutex};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -145,7 +145,7 @@ pub async fn everything_search_extended(
     sort_by: SortBy,
     max_results: u32,
 ) -> Result<Vec<SearchResultExtended>, String> {
-    use everything_sdk::{EverythingSearcher, RequestFlags, SortType};
+    use everything_sdk::{RequestFlags, SortType};
     
     // 生成缓存键
     let cache_key = format!("{}|{:?}|{:?}|{}", query, filter, sort_by, max_results);

@@ -2,6 +2,7 @@ mod commands;
 mod plugin_manager;
 mod plugin_api;
 mod everything_ext;
+mod process_manager;
 
 use commands::AppState;
 use plugin_manager::PluginManager;
@@ -127,7 +128,7 @@ pub fn run() {
             eprintln!("[Window Pool] Created {} slots", window_pool.len());
             
             // 更新窗口池引用（因为之前 manage 的是空的）
-            let mut state = app.state::<AppState>();
+            let state = app.state::<AppState>();
             let mut pool_guard = state.plugin_window_pool.lock().unwrap();
             *pool_guard = window_pool;
             drop(pool_guard);
@@ -306,6 +307,17 @@ pub fn run() {
             commands::log_frontend_message,
             commands::open_path,
             commands::reveal_in_folder,
+            // 进程管理命令
+            process_manager::process_list,
+            process_manager::process_get,
+            process_manager::process_search_by_name,
+            process_manager::process_find_by_port,
+            process_manager::process_find_by_file,
+            process_manager::process_kill,
+            process_manager::process_graceful_kill,
+            process_manager::process_get_stats,
+            process_manager::process_get_open_files,
+            process_manager::process_get_listening_ports,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

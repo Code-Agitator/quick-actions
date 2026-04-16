@@ -1459,7 +1459,7 @@ pub struct EverythingResponse {
 /// 通过 Everything SDK 搜索文件
 #[tauri::command]
 pub async fn everything_search(query: String, _host: Option<String>, _app: tauri::AppHandle) -> Result<EverythingResponse, String> {
-    use everything_sdk::{EverythingSearcher, RequestFlags};
+    use everything_sdk::RequestFlags;
     
     eprintln!("[Everything SDK] Searching for: {}", query);
     
