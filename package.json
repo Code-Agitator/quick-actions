@@ -4,8 +4,8 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
+    "dev": "pnpm build:plugins && vite",
+    "build": "pnpm build:plugins && tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
     "build:plugins": "pnpm --filter \"./plugins/*\" build",
