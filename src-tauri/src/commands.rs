@@ -4,7 +4,6 @@ use std::path::PathBuf;
 use tauri::{State, WebviewWindow, Emitter, Manager, Size, LogicalSize, Position, LogicalPosition};
 use std::collections::VecDeque;
 use pinyin::ToPinyin;
-use tauri_plugin_shell::ShellExt;
 
 pub struct AppState {
     pub plugin_manager: Mutex<PluginManager>,
@@ -1429,85 +1428,94 @@ pub struct EverythingResponse {
     pub results: Vec<EverythingResult>,
 }
 
-/// 通过 es.exe Sidecar 搜索文件
+/// 通过 Everything SDK 搜索文件
 #[tauri::command]
-pub async fn everything_search(query: String, _host: Option<String>, app: tauri::AppHandle) -> Result<EverythingResponse, String> {
-    eprintln!("[Everything CLI] Searching for: {}", query);
+pub async fn everything_search(query: String, _host: Option<String>, _app: tauri::AppHandle) -> Result<EverythingResponse, String> {
+    use everything_sdk::{EverythingSearcher, RequestFlags};
     
-    // 使用 shell plugin 的 sidecar API
-    eprintln!("[Everything CLI] Creating sidecar command...");
-    let command = app.shell()
-        .sidecar("libs/es")
-        .map_err(|e| {
-            eprintln!("[Everything CLI] Failed to create sidecar: {}", e);
-            format!("Failed to create sidecar command: {}", e)
-        })?
-        .args(&[&query, "-json", "-max-results", "100"]);
+    eprintln!("[Everything SDK] Searching for: {}", query);
     
-    eprintln!("[Everything CLI] Executing command...");
-    // 执行命令
-    let output = command.output()
-        .await
-        .map_err(|e| {
-            eprintln!("[Everything CLI] Execution failed: {}", e);
-            format!("Failed to execute es.exe: {}", e)
-        })?;
+    // 使用全局 searcher（处理 PoisonError）
+    let global_guard = everything_sdk::global();
+    let mut global_locked = global_guard.lock().unwrap_or_else(|e| e.into_inner());
+    let mut searcher = global_locked.searcher();
     
-    eprintln!("[Everything CLI] Command completed with status: {}", output.status.success());
+    // 设置搜索字符串
+    searcher.set_search(&query);
     
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        eprintln!("[Everything CLI] STDERR: {}", stderr);
-        eprintln!("[Everything CLI] STDOUT: {}", stdout);
-        return Err(format!("es.exe error: {}", stderr));
-    }
+    // 设置请求标志（使用 FULL_PATH_AND_FILE_NAME 以支持 full_path_name() 方法）
+    searcher.set_request_flags(
+        RequestFlags::EVERYTHING_REQUEST_FULL_PATH_AND_FILE_NAME | 
+        RequestFlags::EVERYTHING_REQUEST_SIZE | 
+        RequestFlags::EVERYTHING_REQUEST_DATE_MODIFIED
+    );
     
-    // 解析 JSON 输出
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    eprintln!("[Everything CLI] Raw output length: {} bytes", stdout.len());
-    eprintln!("[Everything CLI] Raw output: {}", if stdout.len() > 200 { &stdout[..200] } else { &stdout });
+    // 设置最大结果数
+    searcher.set_max(100);
     
-    // 解析 es.exe 的 JSON 输出格式
-    let results = parse_es_output(&stdout)?;
+    // 执行查询
+    let results = searcher.query();
     
-    eprintln!("[Everything CLI] Found {} results", results.len());
+    // 获取结果数量
+    let count = results.len();
     
-    Ok(EverythingResponse { results })
-}
-
-/// 解析 es.exe 的 JSON 输出
-fn parse_es_output(output: &str) -> Result<Vec<EverythingResult>, String> {
-    // es.exe 的 JSON 输出格式：
-    // [{"filename":"C:\\path\\file.txt","size":1234,"date_modified":"2024-01-01 12:00:00"}]
+    eprintln!("[Everything SDK] Found {} results", count);
     
-    let parsed: Vec<serde_json::Value> = serde_json::from_str(output)
-        .map_err(|e| format!("Failed to parse JSON: {}", e))?;
+    let mut everything_results = Vec::new();
     
-    let results = parsed.into_iter().filter_map(|item| {
-        // es.exe 使用 "filename" 字段包含完整路径
-        let filename = item.get("filename")?.as_str()?;
-        
-        // 分离文件名和路径
-        let path_obj = std::path::Path::new(filename);
-        let name = path_obj.file_name()?.to_string_lossy().to_string();
-        let path = path_obj.parent()?.to_string_lossy().to_string();
-        
-        let size = item.get("size").and_then(|v| v.as_u64()).unwrap_or(0);
-        let date_modified = item.get("date_modified")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
+    // 遍历结果
+    for item in results.iter() {
+        // 获取完整路径
+        let filename = item.full_path_name(None)
+            .map_err(|e| format!("Failed to get filename: {}", e))?
+            .to_string_lossy()
             .to_string();
         
-        Some(EverythingResult {
+        let path_obj = std::path::Path::new(&filename);
+        let name = path_obj.file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let path = path_obj.parent()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_default();
+        
+        // 获取文件大小
+        let size = item.size().unwrap_or(0);
+        
+        // 获取修改时间（Everything SDK 返回的是 Windows FILETIME，需要转换）
+        let date_modified = item.date_modified()
+            .ok()
+            .and_then(|filetime| {
+                // Windows FILETIME 是自 1601-01-01 以来的 100 纳秒间隔数
+                // Unix epoch 是 1970-01-01，相差 11644473600 秒
+                const WINDOWS_EPOCH_TO_UNIX_EPOCH: u64 = 11644473600;
+                
+                // 将 100 纳秒转换为秒
+                let seconds_since_windows_epoch = filetime / 10_000_000;
+                
+                // 检查是否有效
+                if seconds_since_windows_epoch < WINDOWS_EPOCH_TO_UNIX_EPOCH {
+                    return None;
+                }
+                
+                // 转换为 Unix 时间戳
+                let unix_timestamp = seconds_since_windows_epoch - WINDOWS_EPOCH_TO_UNIX_EPOCH;
+                
+                // 转换为 DateTime
+                chrono::DateTime::<chrono::Utc>::from_timestamp(unix_timestamp as i64, 0)
+                    .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+            })
+            .unwrap_or_default();
+        
+        everything_results.push(EverythingResult {
             name,
             path,
             size,
             date_modified,
-        })
-    }).collect();
+        });
+    }
     
-    Ok(results)
+    Ok(EverythingResponse { results: everything_results })
 }
 
 /// 通用剪贴板 API: 读取文本

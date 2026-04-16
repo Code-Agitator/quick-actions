@@ -39,6 +39,19 @@ interface ClipboardAPI {
  */
 interface FileSystemAPI {
   /**
+   * 读取文件内容
+   * @param path 文件路径
+   */
+  readFile: (path: string) => Promise<string>;
+  
+  /**
+   * 写入文件内容
+   * @param path 文件路径
+   * @param content 文件内容
+   */
+  writeFile: (path: string, content: string) => Promise<void>;
+  
+  /**
    * 列出目录内容
    * @param path 目录路径
    */
@@ -211,6 +224,35 @@ interface EverythingAPI {
    * @param filePath 文件路径
    */
   revealInFolder: (filePath: string) => Promise<void>;
+  
+  /**
+   * 高级搜索（支持类型筛选和排序）
+   * @param query 搜索关键词
+   * @param filter 文件类型过滤器
+   * @param sortBy 排序方式
+   * @param maxResults 最大结果数
+   */
+  searchExtended: (query: string, filter: string, sortBy: string, maxResults?: number) => Promise<any[]>;
+  
+  /**
+   * 预览文件内容
+   * @param filePath 文件路径
+   * @param maxSize 最大读取大小（字节）
+   */
+  previewFile: (filePath: string, maxSize?: number) => Promise<{
+    content: string;
+    encoding: string;
+    size: number;
+    lines: number;
+    truncated: boolean;
+    mime_type: string;
+  }>;
+  
+  /**
+   * 获取文件详细信息
+   * @param filePath 文件路径
+   */
+  getFileInfo: (filePath: string) => Promise<any>;
 }
 
 /**
@@ -354,6 +396,31 @@ export function createActionsAPI(pluginId: string): ActionsAPI {
     },
     
     fs: {
+      readFile: async (path: string) => {
+        try {
+          return await invoke('plugin_read_file', {
+            pluginId,
+            path
+          });
+        } catch (error) {
+          console.error('[ACTIONS] Read file failed:', error);
+          throw error;
+        }
+      },
+      
+      writeFile: async (path: string, content: string) => {
+        try {
+          await invoke('plugin_write_file', {
+            pluginId,
+            path,
+            content
+          });
+        } catch (error) {
+          console.error('[ACTIONS] Write file failed:', error);
+          throw error;
+        }
+      },
+      
       listDir: async (path: string) => {
         try {
           return await invoke('plugin_list_dir', {
@@ -480,6 +547,49 @@ export function createActionsAPI(pluginId: string): ActionsAPI {
           await invoke('reveal_in_folder', { path: filePath });
         } catch (error) {
           console.error('[ACTIONS] Reveal in folder failed:', error);
+          throw error;
+        }
+      },
+      
+      searchExtended: async (query: string, filter: string, sortBy: string, maxResults: number = 100) => {
+        try {
+          const results = await invoke<any[]>('everything_search_extended', {
+            pluginId,
+            query,
+            filter,
+            sortBy,
+            maxResults
+          });
+          return results;
+        } catch (error) {
+          console.error('[ACTIONS] Everything extended search failed:', error);
+          throw error;
+        }
+      },
+      
+      previewFile: async (filePath: string, maxSize?: number) => {
+        try {
+          const preview = await invoke<any>('preview_file_content', {
+            pluginId,
+            filePath,
+            maxSize
+          });
+          return preview;
+        } catch (error) {
+          console.error('[ACTIONS] Preview file failed:', error);
+          throw error;
+        }
+      },
+      
+      getFileInfo: async (filePath: string) => {
+        try {
+          const info = await invoke<any>('get_file_info', {
+            pluginId,
+            filePath
+          });
+          return info;
+        } catch (error) {
+          console.error('[ACTIONS] Get file info failed:', error);
           throw error;
         }
       }

@@ -6,7 +6,7 @@
 
 ## 🔄 主要变更
 
-### 1. 前端 API 层 (src/utils/pluginAPI.ts)
+### 1. 前端 API 层 (src/utils/actionsAPI.ts)
 
 **新增**: `ACTIONS.everything.search()` API
 
@@ -92,7 +92,7 @@ const results = await window.ACTIONS.everything.search(keyword);
     ↓
 插件调用 ACTIONS.everything.search(query)
     ↓
-pluginAPI.ts  invoke('plugin_everything_search')
+actionsAPI.ts  invoke('plugin_everything_search')
     ↓
 Rust Backend (plugin_api.rs)
     ↓
@@ -112,7 +112,7 @@ Everything 索引数据库
 ## 📦 文件变更清单
 
 ### 修改的文件
-1. ✅ `src/utils/pluginAPI.ts` - 添加 everything API
+1. ✅ `src/utils/actionsAPI.ts` - 添加 everything API
 2. ✅ `plugins/everything-search/src/App.tsx` - 使用新 API
 3. ✅ `plugins/everything-search/README.md` - 更新文档
 4. ✅ `plugins/everything-search/package.json` - 版本升级

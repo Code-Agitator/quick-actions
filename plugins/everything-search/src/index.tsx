@@ -8,10 +8,11 @@ import App from './App';
  * @returns DOM element containing the plugin UI
  */
 export function render({ query, onResult }: { query?: string; onResult?: (result: any) => void }) {
-  // Create container
+  // Create container - 设置固定占满父容器
   const container = document.createElement('div');
   container.id = 'everything-search-root';
   container.className = 'plugin-container';
+  container.style.cssText = 'width: 100%; height: 100%; overflow: hidden;';
   
   // Render React component
   const root = ReactDOM.createRoot(container);

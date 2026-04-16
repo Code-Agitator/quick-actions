@@ -103,7 +103,7 @@ everything: {
 }
 ```
 
-#### 2. 更新 `pluginAPI.ts`
+#### 2. 更新 `actionsAPI.ts`
 
 同样的接口和实现，用于插件加载器模式。
 
@@ -148,7 +148,7 @@ onClick={() => {
 
 ### 前端 API
 3. ✅ `src/utils/actionsAPI.ts` - 添加 `open` 和 `revealInFolder` 方法
-4. ✅ `src/utils/pluginAPI.ts` - 添加 `open` 和 `revealInFolder` 方法
+4. ✅ `src/utils/actionsAPI.ts` - 添加 `open` 和 `revealInFolder` 方法
 
 ### 插件
 5. ✅ `plugins/everything-search/src/App.tsx` - 使用新的 API 打开文件

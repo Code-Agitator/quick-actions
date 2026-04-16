@@ -1,0 +1,16 @@
+{
+  "id": "js-console",
+  "name": "JS Interactive Console",
+  "version": "1.0.0",
+  "description": "Interactive JavaScript console with variable inspector, like browser DevTools",
+  "author": "Quick Actions",
+  "entry": "dist/index.js",
+  "icon": "⚡",
+  "keywords": [
+    "javascript",
+    "console",
+    "repl",
+    "debugger",
+    "variables"
+  ]
+}

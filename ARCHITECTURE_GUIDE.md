@@ -161,7 +161,7 @@ execute = async () => [{ action: () => window.open(assetUrl) }];
 
 ### 3. ACTIONS API
 
-**位置**: `src/utils/pluginAPI.ts`
+**位置**: `src/utils/actionsAPI.ts`
 
 **设计理念**: 提供安全的、受控的系统访问接口，避免直接暴露 `window.__TAURI__`
 

@@ -35,7 +35,6 @@ tauri-plugin-opener = "2"
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-fs = "2"
 arboard = "3.4"
-tauri-plugin-shell = "2"
 log = "0.4"
 serde = { version = "1", features = ["derive"] }
 chrono = { version = "0.4", features = ["serde"] }
@@ -52,4 +51,8 @@ winapi = { version = "0.3.9", features = ["libloaderapi", "winuser", "shellapi",
 libc = "0.2"
 scopeguard = "1.2"
 image = "0.24"
+chardetng = "0.1"
+thiserror = "1.0"
+lazy_static = "1.4"
+everything-sdk = "0.0.6"
 

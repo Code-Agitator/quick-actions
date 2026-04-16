@@ -243,7 +243,7 @@ pub fn reveal_in_folder(path: String, app: tauri::AppHandle) -> Result<(), Strin
 ### 前端 API
 
 ```typescript
-// actionsAPI.ts / pluginAPI.ts
+// actionsAPI.ts
 
 everything: {
   open: async (filePath: string) => {

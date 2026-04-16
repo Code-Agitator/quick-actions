@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { Plugin, PluginResult } from '../types/plugin';
-import { createPluginAPI } from '../utils/pluginAPI';
+import { createActionsAPI } from '../utils/actionsAPI';
 
 export function usePlugins() {
   const [plugins, setPlugins] = useState<Plugin[]>([]);
@@ -40,7 +40,7 @@ export function usePlugins() {
         const pluginModule = module.default || module;
 
         if (typeof pluginModule.execute === 'function') {
-          const api = createPluginAPI(plugin.id);
+          const api = createActionsAPI(plugin.id);
           return {
             ...plugin,
             execute: async (query: string) => {

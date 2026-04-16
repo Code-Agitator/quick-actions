@@ -3,7 +3,7 @@
 ## ✅ 改进完成确认
 
 ### 代码变更
-- [x] `src/utils/pluginAPI.ts` - 添加 `ACTIONS.everything.search()` API
+- [x] `src/utils/actionsAPI.ts` - 添加 `ACTIONS.everything.search()` API
 - [x] `plugins/everything-search/src/App.tsx` - 使用新 API，移除 HTTP 相关代码
 - [x] `plugins/everything-search/README.md` - 更新文档
 - [x] `plugins/everything-search/package.json` - 版本升级到 1.1.0

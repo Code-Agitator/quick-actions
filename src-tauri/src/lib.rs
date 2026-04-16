@@ -1,6 +1,7 @@
 mod commands;
 mod plugin_manager;
 mod plugin_api;
+mod everything_ext;
 
 use commands::AppState;
 use plugin_manager::PluginManager;
@@ -34,7 +35,6 @@ pub fn run() {
             .build())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_shell::init())
         .setup(|app| {
             let mut plugin_manager = PluginManager::new().expect("Failed to initialize plugin manager");
             
@@ -287,6 +287,11 @@ pub fn run() {
             commands::get_start_menu_apps,
             commands::launch_application,
             commands::everything_search,
+            // Everything 扩展命令
+            everything_ext::everything_search_extended,
+            everything_ext::preview_file_content,
+            everything_ext::get_file_info,
+            everything_ext::plugin_everything_open,
             plugin_api::plugin_read_file,
             plugin_api::plugin_write_file,
             plugin_api::plugin_execute_command,

@@ -66,7 +66,7 @@ quick-actions/
 │   │   └── useApplications.ts
 │   ├── utils/             # 工具函数
 │   │   ├── pluginLoader.ts
-│   │   ├── pluginAPI.ts
+│   │   ├── actionsAPI.ts
 │   │   └── searchCache.ts
 │   ├── types/             # TypeScript 类型定义
 │   │   └── plugin.ts

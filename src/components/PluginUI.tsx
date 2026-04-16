@@ -214,7 +214,8 @@ export function PluginUI({ plugin, onClose }: PluginUIProps) {
             title={plugin.name}
           />
         ) : pluginModule ? (
-          <div ref={containerRef} className="w-full min-h-full" />
+          // 自定义 UI 插件 - 使用绝对定位确保占满剩余空间
+          <div ref={containerRef} className="absolute inset-0 w-full h-full" />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="text-center p-8">

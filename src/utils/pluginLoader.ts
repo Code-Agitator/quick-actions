@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { Plugin, PluginManifest } from '../types/plugin';
-import { createPluginAPI } from './pluginAPI';
+import { createActionsAPI } from './actionsAPI';
 
 export async function loadPluginFromManifest(manifest: PluginManifest): Promise<Plugin> {
   const pluginPath = await invoke<string>('get_plugin_path', { id: manifest.id });
@@ -19,7 +19,7 @@ export async function loadPluginFromManifest(manifest: PluginManifest): Promise<
       const pluginModule = module.default || module;
 
       if (typeof pluginModule.execute === 'function') {
-        const api = createPluginAPI(manifest.id);
+        const api = createActionsAPI(manifest.id);
         execute = async (query: string) => {
           return pluginModule.execute(query, api);
         };
