@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import './styles.css'; // 导入自定义样式
 import type { PluginModule, PluginResult, PluginAPI } from './types/plugin';
 
 /**
@@ -9,7 +10,7 @@ import type { PluginModule, PluginResult, PluginAPI } from './types/plugin';
  */
 export function render({ query, onResult }: { query?: string; onResult?: (result: PluginResult) => void }) {
   const container = document.createElement('div');
-  container.id = 'process-manager-root';
+  container.id = 'process-manager-new-root';
   container.className = 'plugin-container h-full w-full';
   
   const root = ReactDOM.createRoot(container);
@@ -27,7 +28,7 @@ export async function execute(query: string, api: PluginAPI): Promise<PluginResu
   // Example: Return a simple result
   return [
     {
-      title: 'Hello process-manager',
+      title: 'Hello process-manager-new',
       description: `You searched for: ${query}`,
       icon: '✨',
       action: () => {
@@ -39,7 +40,7 @@ export async function execute(query: string, api: PluginAPI): Promise<PluginResu
 
 export const metadata = {
   id: 'process-manager',
-  name: 'process manager',
+  name: '进程管理',
   version: '1.0.0',
   description: 'A standalone React plugin for Quick Actions'
 };

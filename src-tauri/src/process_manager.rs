@@ -18,12 +18,15 @@ pub struct ProcessInfo {
     pub files: Option<Vec<String>>,
 }
 
-/// 列出所有进程
+/// 列出所有进程（异步）
 #[tauri::command]
-pub fn process_list() -> Result<Vec<ProcessInfo>, String> {
+pub async fn process_list() -> Result<Vec<ProcessInfo>, String> {
     #[cfg(target_os = "windows")]
     {
-        list_processes_windows()
+        // 在阻塞线程池中执行，避免阻塞异步运行时
+        tokio::task::spawn_blocking(|| list_processes_windows())
+            .await
+            .map_err(|e| format!("Task execution failed: {}", e))?
     }
     
     #[cfg(not(target_os = "windows"))]
@@ -32,12 +35,14 @@ pub fn process_list() -> Result<Vec<ProcessInfo>, String> {
     }
 }
 
-/// 根据 PID 获取进程详情
+/// 根据 PID 获取进程详情（异步）
 #[tauri::command]
-pub fn process_get(pid: u32) -> Result<Option<ProcessInfo>, String> {
+pub async fn process_get(pid: u32) -> Result<Option<ProcessInfo>, String> {
     #[cfg(target_os = "windows")]
     {
-        get_process_by_pid_windows(pid)
+        tokio::task::spawn_blocking(move || get_process_by_pid_windows(pid))
+            .await
+            .map_err(|e| format!("Task execution failed: {}", e))?
     }
     
     #[cfg(not(target_os = "windows"))]
@@ -46,12 +51,14 @@ pub fn process_get(pid: u32) -> Result<Option<ProcessInfo>, String> {
     }
 }
 
-/// 根据名称搜索进程
+/// 根据名称搜索进程（异步）
 #[tauri::command]
-pub fn process_search_by_name(name: String) -> Result<Vec<ProcessInfo>, String> {
+pub async fn process_search_by_name(name: String) -> Result<Vec<ProcessInfo>, String> {
     #[cfg(target_os = "windows")]
     {
-        search_by_name_windows(&name)
+        tokio::task::spawn_blocking(move || search_by_name_windows(&name))
+            .await
+            .map_err(|e| format!("Task execution failed: {}", e))?
     }
     
     #[cfg(not(target_os = "windows"))]
@@ -60,12 +67,14 @@ pub fn process_search_by_name(name: String) -> Result<Vec<ProcessInfo>, String> 
     }
 }
 
-/// 根据端口查找进程
+/// 根据端口查找进程（异步）
 #[tauri::command]
-pub fn process_find_by_port(port: u16) -> Result<Vec<ProcessInfo>, String> {
+pub async fn process_find_by_port(port: u16) -> Result<Vec<ProcessInfo>, String> {
     #[cfg(target_os = "windows")]
     {
-        find_by_port_windows(port)
+        tokio::task::spawn_blocking(move || find_by_port_windows(port))
+            .await
+            .map_err(|e| format!("Task execution failed: {}", e))?
     }
     
     #[cfg(not(target_os = "windows"))]
@@ -74,12 +83,14 @@ pub fn process_find_by_port(port: u16) -> Result<Vec<ProcessInfo>, String> {
     }
 }
 
-/// 根据文件路径查找占用该文件的进程
+/// 根据文件路径查找占用该文件的进程（异步）
 #[tauri::command]
-pub fn process_find_by_file(file_path: String) -> Result<Vec<ProcessInfo>, String> {
+pub async fn process_find_by_file(file_path: String) -> Result<Vec<ProcessInfo>, String> {
     #[cfg(target_os = "windows")]
     {
-        find_by_file_windows(&file_path)
+        tokio::task::spawn_blocking(move || find_by_file_windows(&file_path))
+            .await
+            .map_err(|e| format!("Task execution failed: {}", e))?
     }
     
     #[cfg(not(target_os = "windows"))]
@@ -88,12 +99,14 @@ pub fn process_find_by_file(file_path: String) -> Result<Vec<ProcessInfo>, Strin
     }
 }
 
-/// 终止进程
+/// 终止进程（异步）
 #[tauri::command]
-pub fn process_kill(pid: u32) -> Result<bool, String> {
+pub async fn process_kill(pid: u32) -> Result<bool, String> {
     #[cfg(target_os = "windows")]
     {
-        kill_process_windows(pid)
+        tokio::task::spawn_blocking(move || kill_process_windows(pid))
+            .await
+            .map_err(|e| format!("Task execution failed: {}", e))?
     }
     
     #[cfg(not(target_os = "windows"))]
@@ -102,12 +115,14 @@ pub fn process_kill(pid: u32) -> Result<bool, String> {
     }
 }
 
-/// 优雅地终止进程
+/// 优雅地终止进程（异步）
 #[tauri::command]
-pub fn process_graceful_kill(pid: u32) -> Result<bool, String> {
+pub async fn process_graceful_kill(pid: u32) -> Result<bool, String> {
     #[cfg(target_os = "windows")]
     {
-        graceful_kill_windows(pid)
+        tokio::task::spawn_blocking(move || graceful_kill_windows(pid))
+            .await
+            .map_err(|e| format!("Task execution failed: {}", e))?
     }
     
     #[cfg(not(target_os = "windows"))]
@@ -116,12 +131,14 @@ pub fn process_graceful_kill(pid: u32) -> Result<bool, String> {
     }
 }
 
-/// 获取进程的 CPU 和内存使用率
+/// 获取进程的 CPU 和内存使用率（异步）
 #[tauri::command]
-pub fn process_get_stats(pid: u32) -> Result<HashMap<String, f64>, String> {
+pub async fn process_get_stats(pid: u32) -> Result<HashMap<String, f64>, String> {
     #[cfg(target_os = "windows")]
     {
-        get_process_stats_windows(pid)
+        tokio::task::spawn_blocking(move || get_process_stats_windows(pid))
+            .await
+            .map_err(|e| format!("Task execution failed: {}", e))?
     }
     
     #[cfg(not(target_os = "windows"))]
@@ -130,12 +147,14 @@ pub fn process_get_stats(pid: u32) -> Result<HashMap<String, f64>, String> {
     }
 }
 
-/// 获取进程打开的文件句柄
+/// 获取进程打开的文件句柄（异步）
 #[tauri::command]
-pub fn process_get_open_files(pid: u32) -> Result<Vec<String>, String> {
+pub async fn process_get_open_files(pid: u32) -> Result<Vec<String>, String> {
     #[cfg(target_os = "windows")]
     {
-        get_open_files_windows(pid)
+        tokio::task::spawn_blocking(move || get_open_files_windows(pid))
+            .await
+            .map_err(|e| format!("Task execution failed: {}", e))?
     }
     
     #[cfg(not(target_os = "windows"))]
@@ -144,12 +163,14 @@ pub fn process_get_open_files(pid: u32) -> Result<Vec<String>, String> {
     }
 }
 
-/// 获取进程监听的端口
+/// 获取进程监听的端口（异步）
 #[tauri::command]
-pub fn process_get_listening_ports(pid: u32) -> Result<Vec<u16>, String> {
+pub async fn process_get_listening_ports(pid: u32) -> Result<Vec<u16>, String> {
     #[cfg(target_os = "windows")]
     {
-        get_listening_ports_windows(pid)
+        tokio::task::spawn_blocking(move || get_listening_ports_windows(pid))
+            .await
+            .map_err(|e| format!("Task execution failed: {}", e))?
     }
     
     #[cfg(not(target_os = "windows"))]
@@ -255,7 +276,10 @@ mod windows_impl {
                 let parts: Vec<&str> = line.split_whitespace().collect();
                 if let Some(last_part) = parts.last() {
                     if let Ok(pid) = last_part.parse::<u32>() {
-                        pids.push(pid);
+                        // 过滤掉 PID 0 (System Idle Process) 和 PID 4 (System)
+                        if pid > 4 {
+                            pids.push(pid);
+                        }
                     }
                 }
             }
@@ -352,6 +376,11 @@ mod windows_impl {
 
     /// 获取进程监听的端口
     pub fn get_listening_ports_windows(pid: u32) -> Result<Vec<u16>, String> {
+        // 如果 PID 是 0 或 4，直接返回空（系统进程）
+        if pid <= 4 {
+            return Ok(Vec::new());
+        }
+
         let output = Command::new("netstat")
             .args(&["-ano"])
             .output()

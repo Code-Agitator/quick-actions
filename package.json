@@ -10,7 +10,9 @@
     "tauri": "tauri",
     "build:plugins": "pnpm --filter \"./plugins/*\" build",
     "dev:plugins": "pnpm --filter \"./plugins/*\" build --watch",
-    "tauri:dev": "pnpm build:plugins && tauri dev"
+    "tauri:dev": "pnpm build:plugins && tauri dev",
+    "test": "vitest",
+    "test:ui": "vitest --ui"
   },
   "dependencies": {
     "@heroui/react": "^3.0.1",
@@ -29,11 +31,13 @@
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",
+    "@vitest/ui": "^4.1.4",
     "autoprefixer": "^10.4.27",
     "postcss": "^8.5.8",
     "postcss-import": "^16.1.1",
     "tailwindcss": "^4.2.2",
     "typescript": "~5.8.3",
-    "vite": "^7.0.4"
+    "vite": "^7.0.4",
+    "vitest": "^4.1.4"
   }
 }

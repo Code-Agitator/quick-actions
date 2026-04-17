@@ -56,4 +56,5 @@ thiserror = "1.0"
 lazy_static = "1.4"
 everything-sdk = "0.0.6"
 regex = "1"
+tokio = { version = "1", features = ["full"] }
 

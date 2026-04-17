@@ -42,7 +42,7 @@ export class SearchCache {
         type: 'plugin',
         pluginId: plugin.id,
         query: '',
-      } as PluginResult);
+      } as PluginResult, plugin.keywords || []);
       this.index.set(item.id, item);
     });
 
@@ -59,9 +59,10 @@ export class SearchCache {
   /**
    * 创建索引项
    */
-  private createIndexItem(result: SearchResult): SearchIndexItem {
+  private createIndexItem(result: SearchResult, keywords: string[] = []): SearchIndexItem {
     const title = result.title;
     const titleLower = title.toLowerCase();
+    const keywordsLower = keywords.map(k => k.toLowerCase());
     
     return {
       id: result.id,
@@ -69,8 +70,8 @@ export class SearchCache {
       titleLower,
       titlePinyin: getPinyinFull(title),
       titleInitials: getPinyinInitials(title),
-      keywords: [],
-      keywordsLower: [],
+      keywords,
+      keywordsLower,
       result,
     };
   }
@@ -132,21 +133,45 @@ export class SearchCache {
 
     let score = 0;
 
+    // 0. 关键词匹配 - 最高优先级 (120-150分)
+    for (const keyword of item.keywordsLower) {
+      if (keyword === queryLower) {
+        // 完全匹配关键词 - 最高分
+        return 150;
+      }
+      if (keyword.includes(queryLower)) {
+        // 关键词包含查询 - 高分
+        const matchBonus = Math.min(20, keyword.length - queryLower.length);
+        score = Math.max(score, 130 + matchBonus);
+      }
+      if (this.isSubsequence(queryLower, keyword)) {
+        // 子序列匹配关键词 - 中高分
+        const gapScore = this.calculateGapScore(queryLower, keyword);
+        score = Math.max(score, 110 + gapScore);
+      }
+    }
+
+    // ✅ 如果关键词匹配成功，直接返回，不再进行其他匹配
+    if (score > 0) {
+      return score;
+    }
+
     // 1. 直接包含匹配 - 最高分 (100分)
     if (item.titleLower.includes(queryLower)) {
       // 连续匹配的字符越多，分数越高
       const matchLength = queryLower.length;
-      score = Math.max(score, 100 + matchLength);
+      // ✅ 限制标题匹配的最高分为 99，确保低于关键词匹配
+      score = Math.min(99, Math.max(score, 80 + matchLength));
       
       // 如果从开头开始匹配，额外加分
       if (item.titleLower.startsWith(queryLower)) {
-        score += 20;
+        score = Math.min(99, score + 10);
       }
       
       // 如果是完整单词匹配，额外加分
       const words = item.titleLower.split(/\s+/);
       if (words.some(word => word === queryLower)) {
-        score += 15;
+        score = Math.min(99, score + 9);
       }
       
       return score;
@@ -241,38 +266,6 @@ export class SearchCache {
     
     // 间隙为0时得满分，间隙越大分数越低
     return Math.max(0, maxScore - avgGap * 2);
-  }
-
-  /**
-   * 匹配检查
-   */
-  private matches(item: SearchIndexItem, queryLower: string): boolean {
-    // 1. 标题直接匹配
-    if (item.titleLower.includes(queryLower)) {
-      return true;
-    }
-
-    // 2. 单词首字母匹配 (例如: goc -> google chrome)
-    if (this.matchesWordInitials(item.titleLower, queryLower)) {
-      return true;
-    }
-
-    // 3. 子序列模糊匹配 (例如: et -> everything)
-    if (this.isSubsequence(queryLower, item.titleLower)) {
-      return true;
-    }
-
-    // 4. 拼音首字母匹配
-    if (item.titleInitials.includes(queryLower) || this.isSubsequence(queryLower, item.titleInitials)) {
-      return true;
-    }
-
-    // 5. 完整拼音匹配
-    if (item.titlePinyin.includes(queryLower) || this.isSubsequence(queryLower, item.titlePinyin)) {
-      return true;
-    }
-
-    return false;
   }
 
   /**
