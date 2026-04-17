@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { SearchResult } from '../types/searchResult';
 import { getAppIconConfig } from '../utils/appIcons';
 import { useAppSettings } from '../hooks/useAppSettings';
@@ -20,6 +20,10 @@ export function SearchResultList({
   const { settings } = useAppSettings();
   const listRef = useRef<HTMLDivElement>(null);
   
+  // ✅ 跟踪是否允许鼠标悬停选择
+  // 初始为 false，防止窗口打开时鼠标停留在某个选项上立即选中
+  const [allowMouseSelect, setAllowMouseSelect] = useState(false);
+  
   // 根据布局密度设置样式
   const isCompact = settings.layoutDensity === 'compact';
   const itemPadding = isCompact ? 'px-3 py-1.5' : 'px-3 py-2.5';
@@ -36,6 +40,24 @@ export function SearchResultList({
       }
     }
   }, [selectedIndex]);
+
+  // ✅ 当搜索结果变化时，重置鼠标选择状态
+  // 防止新的搜索结果出现时，鼠标停留在某个选项上立即选中
+  useEffect(() => {
+    setAllowMouseSelect(false);
+  }, [results]);
+
+  // ✅ 监听鼠标移动，用户主动移动鼠标后才允许悬停选择
+  const handleMouseMove = useCallback(() => {
+    setAllowMouseSelect(true);
+  }, []);
+
+  // ✅ 处理鼠标进入事件，只有在允许时才触发选择
+  const handleMouseEnter = useCallback((index: number) => {
+    if (allowMouseSelect) {
+      onSelectIndex(index);
+    }
+  }, [allowMouseSelect, onSelectIndex]);
 
   if (results.length === 0) {
     return (
@@ -63,7 +85,11 @@ export function SearchResultList({
   };
 
   return (
-    <div ref={listRef} className="space-y-0.5 px-2">
+    <div 
+      ref={listRef} 
+      className="space-y-0.5 px-2"
+      onMouseMove={handleMouseMove}
+    >
       {results.map((result, index) => {
         // 优先使用后端提取的真实图标（Base64）
         const hasRealIcon = result.type === 'application' && result.icon && result.icon.startsWith('data:image');
@@ -86,7 +112,7 @@ export function SearchResultList({
           >
             <div
               onClick={() => onExecute(result)}
-              onMouseEnter={() => onSelectIndex(index)}
+              onMouseEnter={() => handleMouseEnter(index)}
               className={`group flex items-center ${gapSize} ${itemPadding} rounded-md cursor-pointer transition-all duration-150 ${
                 isSelected 
                   ? 'bg-black/5 dark:bg-white/[0.14]' 
