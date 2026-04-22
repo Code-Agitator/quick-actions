@@ -112,26 +112,27 @@ export class SearchCache {
   private performSearch(query: string): SearchResult[] {
     const queryLower = query.toLowerCase();
     const results: Array<{ result: SearchResult; score: number; pinned?: boolean }> = [];
+    const pinnedItems: Array<{ result: SearchResult; score: number; pinned?: boolean }> = [];
 
     for (const item of this.index.values()) {
       const score = this.calculateMatchScore(item, queryLower);
       
-      // 固定的插件始终显示（即使分数为0）
-      if (score > 0 || item.pinned) {
+      // 有匹配分数的项目加入搜索结果
+      if (score > 0) {
         results.push({ result: item.result, score, pinned: item.pinned });
+      } else if (item.pinned) {
+        // 没有匹配但固定的插件，放入待显示列表
+        pinnedItems.push({ result: item.result, score: 0, pinned: true });
       }
     }
 
-    // 按匹配度排序（分数高的在前），固定的插件优先
-    results.sort((a, b) => {
-      // 如果一个是固定的，另一个不是，固定的排在前面
-      if (a.pinned && !b.pinned) return -1;
-      if (!a.pinned && b.pinned) return 1;
-      // 否则按分数排序
-      return b.score - a.score;
-    });
+    // 按匹配度排序（分数高的在前）
+    results.sort((a, b) => b.score - a.score);
 
-    return results.map(r => r.result);
+    // 将固定但未匹配的插件追加到末尾
+    const finalResults = [...results, ...pinnedItems];
+
+    return finalResults.map(r => r.result);
   }
 
   /**
