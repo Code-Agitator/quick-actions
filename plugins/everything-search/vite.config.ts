@@ -23,6 +23,11 @@ export default defineConfig({
         // 确保所有依赖都被内联
         inlineDynamicImports: true
       }
+    },
+    // Watch 模式配置
+    watch: {
+      // 排除 node_modules
+      exclude: 'node_modules/**'
     }
   }
 });

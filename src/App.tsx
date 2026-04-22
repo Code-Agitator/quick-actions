@@ -20,6 +20,7 @@ function App() {
   const searchBarRef = useRef<SearchBarRef>(null);
   const { plugins } = usePlugins();
   const { applications, reload: reloadApplications } = useApplications();
+  const { getPinnedPlugins, togglePluginPin } = useAppSettings();
   // 确保主题在应用启动时初始化（useAppSettings 的 useEffect 会自动应用主题）
   useAppSettings();
   const { settings: debugSettings } = useDebug();
@@ -183,12 +184,49 @@ function App() {
   useEffect(() => {
     // 只要有数据就重建索引（即使只有一个有数据）
     if (plugins.length > 0 || applications.length > 0) {
-      searchCache.rebuildIndex(plugins, applications);
+      // 获取固定的插件列表
+      const pinnedSet = getPinnedPlugins();
+      
+      // 为插件添加固定状态
+      const pluginsWithPinned = plugins.map(plugin => ({
+        ...plugin,
+        pinned: plugin.pinned || pinnedSet.has(plugin.id)
+      }));
+      
+      searchCache.rebuildIndex(pluginsWithPinned, applications);
       
       // 标记索引已就绪，触发重新渲染
       setIndexReady(true);
     }
   }, [plugins, applications]);
+
+  // 监听 pinned 状态变化，重建索引
+  useEffect(() => {
+    const handlePinnedChanged = () => {
+      console.log('[App] Pinned state changed, rebuilding index...');
+      const pinnedSet = getPinnedPlugins();
+      
+      // 为插件添加固定状态
+      const pluginsWithPinned = plugins.map(plugin => ({
+        ...plugin,
+        pinned: plugin.pinned || pinnedSet.has(plugin.id)
+      }));
+      
+      searchCache.rebuildIndex(pluginsWithPinned, applications);
+      
+      // 如果当前有搜索词，强制重新计算搜索结果
+      if (query) {
+        // 通过更新 indexReady 触发 useMemo 重新计算
+        setIndexReady(false);
+        setTimeout(() => setIndexReady(true), 0);
+      }
+    };
+
+    window.addEventListener('plugin-pinned-changed', handlePinnedChanged);
+    return () => {
+      window.removeEventListener('plugin-pinned-changed', handlePinnedChanged);
+    };
+  }, [plugins, applications, query, getPinnedPlugins]);
 
   // 监听插件变化事件（卸载/安装后自动刷新索引）
   useEffect(() => {
@@ -345,7 +383,10 @@ function App() {
     >
       {showSettings ? (
         // 设置页面
-        <Settings onClose={() => setShowSettings(false)} />
+        <Settings 
+          onClose={() => setShowSettings(false)} 
+          onTogglePin={togglePluginPin}
+        />
       ) : (
         // 主界面 - Spotlight 风格
         <>

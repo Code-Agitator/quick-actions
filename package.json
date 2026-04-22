@@ -4,15 +4,16 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "pnpm build:plugins && vite",
-    "build": "pnpm build:plugins && tsc && vite build",
-    "preview": "vite preview",
-    "tauri": "tauri",
-    "build:plugins": "pnpm --filter \"./plugins/*\" build",
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "dev:ui": "concurrently \"vite\" \"pnpm dev:plugins\"",
+    "build:ui": "tsc && vite build && pnpm build:plugins",
     "dev:plugins": "pnpm --filter \"./plugins/*\" build --watch",
-    "tauri:dev": "pnpm build:plugins && tauri dev",
+    "build:plugins": "pnpm --filter \"./plugins/*\" build",
+    "tauri": "tauri",
     "test": "vitest",
-    "test:ui": "vitest --ui"
+    "test:ui": "vitest --ui",
+    "preview": "vite preview"
   },
   "dependencies": {
     "@heroui/react": "^3.0.1",
@@ -33,6 +34,7 @@
     "@vitejs/plugin-react": "^4.6.0",
     "@vitest/ui": "^4.1.4",
     "autoprefixer": "^10.4.27",
+    "concurrently": "^9.1.0",
     "postcss": "^8.5.8",
     "postcss-import": "^16.1.1",
     "tailwindcss": "^4.2.2",

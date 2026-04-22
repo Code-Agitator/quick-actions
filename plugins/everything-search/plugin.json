@@ -6,6 +6,7 @@
   "author": "Quick Actions Team",
   "entry": "dist/index.js",
   "icon": "🔍",
+  "pinned": true,
   "keywords": [
     "everything",
     "search",

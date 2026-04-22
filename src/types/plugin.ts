@@ -8,6 +8,7 @@ export interface Plugin {
   entry: string;
   entry_type?: 'js' | 'html' | 'esm';
   permissions?: string[];
+  pinned?: boolean; // 是否固定在搜索结果中
   execute?: (query: string) => Promise<PluginResult[]>;
 }
 
@@ -29,4 +30,5 @@ export interface PluginManifest {
   entry: string;
   entry_type?: 'js' | 'html' | 'esm';
   permissions?: string[];
+  pinned?: boolean; // 是否固定在搜索结果中
 }

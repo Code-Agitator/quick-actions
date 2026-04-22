@@ -31,6 +31,8 @@ pub struct PluginMetadata {
     pub entry_type: PluginEntryType,
     #[serde(default)]
     pub permissions: Vec<String>,
+    #[serde(default)]
+    pub pinned: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

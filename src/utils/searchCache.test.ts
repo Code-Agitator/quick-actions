@@ -8,13 +8,14 @@ describe('SearchCache - Keywords Matching', () => {
     cache = new SearchCache();
   });
 
-  const createMockPlugin = (id: string, name: string, keywords: string[]): any => ({
+  const createMockPlugin = (id: string, name: string, keywords: string[], pinned?: boolean): any => ({
     id,
     name,
     description: `Test plugin ${name}`,
     icon: '🔌',
     keywords,
     entry: 'dist/index.js',
+    pinned,
   });
 
   describe('Keyword exact match', () => {
@@ -185,6 +186,82 @@ describe('SearchCache - Keywords Matching', () => {
       expect(cache.search('PROCESS')).toHaveLength(1);
       expect(cache.search('react')).toHaveLength(1);
       expect(cache.search('React')).toHaveLength(1);
+    });
+  });
+
+  describe('Pinned plugins', () => {
+    it('should rank pinned plugins higher in search results', () => {
+      const plugins = [
+        createMockPlugin('plugin1', '插件一', ['test'], false),
+        createMockPlugin('plugin2', '插件二', ['test'], true), // pinned
+      ];
+
+      cache.rebuildIndex(plugins, []);
+      const results = cache.search('test');
+
+      expect(results).toHaveLength(2);
+      // Pinned plugin should come first
+      expect(results[0].id).toBe('plugin-plugin2');
+      expect(results[1].id).toBe('plugin-plugin1');
+    });
+
+    it('should show pinned plugins first when no query', () => {
+      const plugins = [
+        createMockPlugin('plugin1', '插件一', ['test'], false),
+        createMockPlugin('plugin2', '插件二', ['example'], true), // pinned
+        createMockPlugin('plugin3', '插件三', ['demo'], false),
+      ];
+
+      cache.rebuildIndex(plugins, []);
+      const results = cache.search('');
+
+      expect(results).toHaveLength(3);
+      // Pinned plugin should be first
+      expect(results[0].id).toBe('plugin-plugin2');
+    });
+
+    it('should maintain score order among pinned plugins', () => {
+      const plugins = [
+        createMockPlugin('plugin1', 'Process Manager', ['process'], true), // keyword match
+        createMockPlugin('plugin2', '进程工具', ['process', 'tool'], true), // also has process keyword
+      ];
+
+      cache.rebuildIndex(plugins, []);
+      const results = cache.search('process');
+
+      expect(results).toHaveLength(2);
+      // Both are pinned and both have keyword match, so they should be ordered by other factors
+      expect(results[0].id).toBe('plugin-plugin1');
+      expect(results[1].id).toBe('plugin-plugin2');
+    });
+
+    it('should always show pinned plugins even when not matching', () => {
+      const plugins = [
+        createMockPlugin('plugin1', '插件一', ['test'], false),
+        createMockPlugin('plugin2', 'Everything 搜索', ['everything'], true), // pinned but no match
+      ];
+
+      cache.rebuildIndex(plugins, []);
+      const results = cache.search('nmfd'); // search for something that doesn't match
+
+      expect(results).toHaveLength(1);
+      // Pinned plugin should still show up even with no match
+      expect(results[0].id).toBe('plugin-plugin2');
+    });
+
+    it('should prioritize pinned over non-pinned regardless of score', () => {
+      const plugins = [
+        createMockPlugin('plugin1', 'Everything Search', ['everything', 'other'], false), // has 'other' keyword
+        createMockPlugin('plugin2', '其他插件', ['other'], true), // pinned and has 'other' keyword
+      ];
+
+      cache.rebuildIndex(plugins, []);
+      const results = cache.search('other');
+
+      expect(results).toHaveLength(2);
+      // Both match 'other', but plugin2 is pinned so should come first
+      expect(results[0].id).toBe('plugin-plugin2');
+      expect(results[1].id).toBe('plugin-plugin1');
     });
   });
 

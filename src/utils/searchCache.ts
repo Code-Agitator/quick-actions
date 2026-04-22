@@ -14,6 +14,7 @@ interface SearchIndexItem {
   keywords: string[];
   keywordsLower: string[];
   result: SearchResult;
+  pinned?: boolean;         // 是否固定
 }
 
 /**
@@ -42,7 +43,7 @@ export class SearchCache {
         type: 'plugin',
         pluginId: plugin.id,
         query: '',
-      } as PluginResult, plugin.keywords || []);
+      } as PluginResult, plugin.keywords || [], plugin.pinned);
       this.index.set(item.id, item);
     });
 
@@ -59,11 +60,11 @@ export class SearchCache {
   /**
    * 创建索引项
    */
-  private createIndexItem(result: SearchResult, keywords: string[] = []): SearchIndexItem {
+  private createIndexItem(result: SearchResult, keywords: string[] = [], pinned?: boolean): SearchIndexItem {
     const title = result.title;
     const titleLower = title.toLowerCase();
     const keywordsLower = keywords.map(k => k.toLowerCase());
-    
+
     return {
       id: result.id,
       title,
@@ -73,6 +74,7 @@ export class SearchCache {
       keywords,
       keywordsLower,
       result,
+      pinned,
     };
   }
 
@@ -94,7 +96,7 @@ export class SearchCache {
     }
 
     debugLog('cacheStats', `Cache miss for query: "${query}"`);
-    
+
     // 执行搜索
     const results = this.performSearch(query);
 
@@ -109,17 +111,25 @@ export class SearchCache {
    */
   private performSearch(query: string): SearchResult[] {
     const queryLower = query.toLowerCase();
-    const results: Array<{ result: SearchResult; score: number }> = [];
+    const results: Array<{ result: SearchResult; score: number; pinned?: boolean }> = [];
 
     for (const item of this.index.values()) {
       const score = this.calculateMatchScore(item, queryLower);
-      if (score > 0) {
-        results.push({ result: item.result, score });
+      
+      // 固定的插件始终显示（即使分数为0）
+      if (score > 0 || item.pinned) {
+        results.push({ result: item.result, score, pinned: item.pinned });
       }
     }
 
-    // 按匹配度排序（分数高的在前）
-    results.sort((a, b) => b.score - a.score);
+    // 按匹配度排序（分数高的在前），固定的插件优先
+    results.sort((a, b) => {
+      // 如果一个是固定的，另一个不是，固定的排在前面
+      if (a.pinned && !b.pinned) return -1;
+      if (!a.pinned && b.pinned) return 1;
+      // 否则按分数排序
+      return b.score - a.score;
+    });
 
     return results.map(r => r.result);
   }
@@ -162,18 +172,18 @@ export class SearchCache {
       const matchLength = queryLower.length;
       // ✅ 限制标题匹配的最高分为 99，确保低于关键词匹配
       score = Math.min(99, Math.max(score, 80 + matchLength));
-      
+
       // 如果从开头开始匹配，额外加分
       if (item.titleLower.startsWith(queryLower)) {
         score = Math.min(99, score + 10);
       }
-      
+
       // 如果是完整单词匹配，额外加分
       const words = item.titleLower.split(/\s+/);
       if (words.some(word => word === queryLower)) {
         score = Math.min(99, score + 9);
       }
-      
+
       return score;
     }
 
@@ -183,11 +193,11 @@ export class SearchCache {
       // 检查是否是连续的子序列
       const isConsecutive = this.isConsecutiveSubsequence(queryLower, initials);
       score = Math.max(score, isConsecutive ? 95 : 85);
-      
+
       // 查询长度占首字母长度的比例越高，分数越高
       const ratio = queryLower.length / initials.length;
       score += ratio * 10;
-      
+
       return score;
     }
 
@@ -196,7 +206,7 @@ export class SearchCache {
       // 计算匹配的紧密程度
       const gapScore = this.calculateGapScore(queryLower, item.titleLower);
       score = Math.max(score, 60 + gapScore);
-      
+
       return score;
     }
 
@@ -204,7 +214,7 @@ export class SearchCache {
     if (item.titleInitials.includes(queryLower) || this.isSubsequence(queryLower, item.titleInitials)) {
       const isConsecutive = item.titleInitials.includes(queryLower);
       score = Math.max(score, isConsecutive ? 70 : 55);
-      
+
       return score;
     }
 
@@ -212,7 +222,7 @@ export class SearchCache {
     if (item.titlePinyin.includes(queryLower) || this.isSubsequence(queryLower, item.titlePinyin)) {
       const isConsecutive = item.titlePinyin.includes(queryLower);
       score = Math.max(score, isConsecutive ? 60 : 45);
-      
+
       return score;
     }
 
@@ -225,9 +235,9 @@ export class SearchCache {
   private getWordInitials(text: string): string {
     const words = text.split(/\s+/);
     return words
-      .map(word => word[0])
-      .filter(char => char && /[a-z0-9]/.test(char))
-      .join('');
+        .map(word => word[0])
+        .filter(char => char && /[a-z0-9]/.test(char))
+        .join('');
   }
 
   /**
@@ -263,7 +273,7 @@ export class SearchCache {
     // 平均间隙越小，分数越高
     const avgGap = totalGap / (matches - 1 || 1);
     const maxScore = 20;
-    
+
     // 间隙为0时得满分，间隙越大分数越低
     return Math.max(0, maxScore - avgGap * 2);
   }
@@ -274,14 +284,14 @@ export class SearchCache {
    */
   private matchesWordInitials(text: string, query: string): boolean {
     if (!query) return true;
-    
+
     // 提取所有单词的首字母
     const words = text.split(/\s+/);
     const initials = words
-      .map(word => word[0])
-      .filter(char => char && /[a-z0-9]/.test(char))
-      .join('');
-    
+        .map(word => word[0])
+        .filter(char => char && /[a-z0-9]/.test(char))
+        .join('');
+
     // 检查查询是否是首字母的子序列
     return this.isSubsequence(query, initials);
   }
@@ -293,14 +303,14 @@ export class SearchCache {
   private isSubsequence(query: string, target: string): boolean {
     let queryIndex = 0;
     let targetIndex = 0;
-    
+
     while (queryIndex < query.length && targetIndex < target.length) {
       if (query[queryIndex] === target[targetIndex]) {
         queryIndex++;
       }
       targetIndex++;
     }
-    
+
     return queryIndex === query.length;
   }
 
@@ -308,15 +318,22 @@ export class SearchCache {
    * 获取所有插件（默认显示）
    */
   private getAllPlugins(): SearchResult[] {
-    const plugins: SearchResult[] = [];
-    
+    const plugins: Array<{ result: SearchResult; pinned?: boolean }> = [];
+
     for (const item of this.index.values()) {
       if (item.result.type === 'plugin') {
-        plugins.push(item.result);
+        plugins.push({ result: item.result, pinned: item.pinned });
       }
     }
-    
-    return plugins;
+
+    // 固定的插件排在前面
+    plugins.sort((a, b) => {
+      if (a.pinned && !b.pinned) return -1;
+      if (!a.pinned && b.pinned) return 1;
+      return 0;
+    });
+
+    return plugins.map(p => p.result);
   }
 
   /**

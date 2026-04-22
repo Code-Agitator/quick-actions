@@ -21,6 +21,7 @@ const DEFAULT_SETTINGS: AppSettings = {
 };
 
 const SETTINGS_KEY = 'quick-actions-settings';
+const PLUGIN_PINNED_KEY = 'quick-actions-plugin-pinned';
 
 export function useAppSettings() {
   const [settings, setSettings] = useState<AppSettings>(() => {
@@ -70,10 +71,50 @@ export function useAppSettings() {
     localStorage.removeItem(SETTINGS_KEY);
   };
 
+  // 获取插件固定状态
+  const getPinnedPlugins = (): Set<string> => {
+    try {
+      const saved = localStorage.getItem(PLUGIN_PINNED_KEY);
+      if (saved) {
+        return new Set(JSON.parse(saved));
+      }
+    } catch (error) {
+      console.error('[useAppSettings] Failed to load pinned plugins:', error);
+    }
+    return new Set();
+  };
+
+  // 切换插件固定状态
+  const togglePluginPin = (pluginId: string, pinned: boolean) => {
+    try {
+      const pinnedSet = getPinnedPlugins();
+      if (pinned) {
+        pinnedSet.add(pluginId);
+      } else {
+        pinnedSet.delete(pluginId);
+      }
+      localStorage.setItem(PLUGIN_PINNED_KEY, JSON.stringify(Array.from(pinnedSet)));
+      console.log(`[useAppSettings] Plugin ${pluginId} pinned: ${pinned}`);
+      
+      // 触发自定义事件以通知其他组件更新
+      window.dispatchEvent(new CustomEvent('plugin-pinned-changed'));
+    } catch (error) {
+      console.error('[useAppSettings] Failed to save pinned plugin:', error);
+    }
+  };
+
+  // 检查插件是否被固定
+  const isPluginPinned = (pluginId: string): boolean => {
+    return getPinnedPlugins().has(pluginId);
+  };
+
   return {
     settings,
     updateSetting,
     resetSettings,
+    getPinnedPlugins,
+    togglePluginPin,
+    isPluginPinned,
   };
 }
 

@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { IoSettingsOutline, IoCubeOutline, IoColorPaletteOutline, IoPowerOutline, IoInformationCircleOutline, IoClose, IoTrashOutline, IoBugOutline } from 'react-icons/io5';
+import { Pin, PinOff } from 'lucide-react';
 import { usePlugins } from '../hooks/usePlugins';
 import { useDebug } from '../context/DebugContext';
 import { useAppSettings } from '../hooks/useAppSettings';
 
 interface SettingsProps {
   onClose: () => void;
+  onTogglePin?: (id: string, pinned: boolean) => void;
 }
 
 // 可复用的设置卡片组件
@@ -23,7 +25,7 @@ function SettingsCard({ children, className = '' }: SettingsCardProps) {
   );
 }
 
-export function Settings({ onClose }: SettingsProps) {
+export function Settings({ onClose, onTogglePin }: SettingsProps) {
   const [activeTab, setActiveTab] = useState('plugins');
   const { plugins, loading, uninstallPlugin } = usePlugins();
   const { settings: debugSettings, toggleDebug, isDebugOpen, togglePanel } = useDebug();
@@ -88,7 +90,7 @@ export function Settings({ onClose }: SettingsProps) {
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto bg-transparent">
           <div className="px-6 py-4">
-            {activeTab === 'plugins' && <PluginsTab plugins={plugins} loading={loading} onUninstall={uninstallPlugin} />}
+            {activeTab === 'plugins' && <PluginsTab plugins={plugins} loading={loading} onUninstall={uninstallPlugin} onTogglePin={onTogglePin} />}
             {activeTab === 'appearance' && (
               <AppearanceTab
                 theme={settings.theme}
@@ -156,9 +158,32 @@ interface PluginsTabProps {
   plugins: any[];
   loading: boolean;
   onUninstall: (id: string) => void;
+  onTogglePin?: (id: string, pinned: boolean) => void;
 }
 
-function PluginsTab({ plugins, loading, onUninstall }: PluginsTabProps) {
+function PluginsTab({ plugins, loading, onUninstall, onTogglePin }: PluginsTabProps) {
+  const { isPluginPinned, getPinnedPlugins } = useAppSettings();
+  // 使用 state 来跟踪 pinned 插件列表，以便在变化时重新渲染
+  const [pinnedPlugins, setPinnedPlugins] = useState<Set<string>>(() => getPinnedPlugins());
+
+  // 监听 pinned 插件变化
+  useEffect(() => {
+    const handleStorageChange = () => {
+      setPinnedPlugins(getPinnedPlugins());
+    };
+
+    // 监听 storage 事件（跨标签页）
+    window.addEventListener('storage', handleStorageChange);
+    
+    // 自定义事件（同一页面）
+    window.addEventListener('plugin-pinned-changed', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('plugin-pinned-changed', handleStorageChange);
+    };
+  }, [getPinnedPlugins]);
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between mb-3">
@@ -177,32 +202,60 @@ function PluginsTab({ plugins, loading, onUninstall }: PluginsTabProps) {
         </div>
       ) : (
         <div className="grid gap-2">
-          {plugins.map((plugin) => (
-            <SettingsCard key={plugin.id} className="p-3.5 hover:shadow-md transition-shadow duration-200">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg opacity-90">{plugin.icon || '🔌'}</span>
-                    <h3 className="font-medium text-gray-900 dark:text-gray-100 text-sm tracking-tight">{plugin.name}</h3>
-                    <span className="text-[10px] px-1.5 py-0.5 bg-black/5 dark:bg-white/[0.08] text-gray-600 dark:text-gray-400/80 rounded-md font-medium">v{plugin.version}</span>
+          {plugins.map((plugin) => {
+            // 合并 plugin.json 中的 pinned 和 localStorage 中的 pinned
+            const isPinned = plugin.pinned || isPluginPinned(plugin.id);
+            
+            return (
+              <SettingsCard key={plugin.id} className="p-3.5 hover:shadow-md transition-shadow duration-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg opacity-90">{plugin.icon || '🔌'}</span>
+                      <h3 className="font-medium text-gray-900 dark:text-gray-100 text-sm tracking-tight">{plugin.name}</h3>
+                      <span className="text-[10px] px-1.5 py-0.5 bg-black/5 dark:bg-white/[0.08] text-gray-600 dark:text-gray-400/80 rounded-md font-medium">v{plugin.version}</span>
+                      {isPinned && (
+                        <span className="text-[10px] px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-md font-medium flex items-center gap-1">
+                          <Pin className="w-3 h-3" />
+                          已固定
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-600 dark:text-gray-400/70 mt-1 leading-relaxed">{plugin.description}</p>
                   </div>
-                  <p className="text-xs text-gray-600 dark:text-gray-400/70 mt-1 leading-relaxed">{plugin.description}</p>
+                  <div className="flex items-center gap-2">
+                    {onTogglePin && (
+                      <button
+                        onClick={() => onTogglePin(plugin.id, !isPinned)}
+                        className={`p-1.5 rounded-md transition-all duration-150 ${
+                          isPinned
+                            ? 'text-blue-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+                            : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800'
+                        }`}
+                        title={isPinned ? '取消固定' : '固定在搜索结果'}
+                      >
+                        {isPinned ? (
+                          <Pin className="w-4 h-4" />
+                        ) : (
+                          <PinOff className="w-4 h-4" />
+                        )}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        invoke('log_frontend_message', { level: 'info', message: `User clicked uninstall for plugin: ${plugin.id}` });
+                        onUninstall(plugin.id);
+                      }}
+                      className="p-1.5 text-red-500/80 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-all duration-150"
+                      title="卸载插件"
+                    >
+                      <IoTrashOutline className="text-base" />
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => {
-                      invoke('log_frontend_message', { level: 'info', message: `User clicked uninstall for plugin: ${plugin.id}` });
-                      onUninstall(plugin.id);
-                    }}
-                    className="p-1.5 text-red-500/80 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-all duration-150"
-                    title="卸载插件"
-                  >
-                    <IoTrashOutline className="text-base" />
-                  </button>
-                </div>
-              </div>
-            </SettingsCard>
-          ))}
+              </SettingsCard>
+            );
+          })}
         </div>
       )}
     </div>
