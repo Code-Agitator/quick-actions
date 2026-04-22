@@ -218,32 +218,9 @@ pub fn run() {
                 let _ = window.hide();
             }
 
-            let handle = app.handle().clone();
-            let last_toggle = Arc::new(Mutex::new(std::time::Instant::now()));
-
-            // 注册全局快捷键 Ctrl+Space
-            if let Err(e) = app.global_shortcut().on_shortcut("Ctrl+Space", move |_app, _shortcut, event| {
-                use tauri_plugin_global_shortcut::ShortcutState;
-                
-                // 只在按键按下时触发，忽略释放事件
-                if event.state() != ShortcutState::Pressed {
-                    return;
-                }
-                
-                let mut last = last_toggle.lock().unwrap();
-                let now = std::time::Instant::now();
-
-                // 防抖：只有距离上次触发超过 300ms 才执行
-                if now.duration_since(*last).as_millis() > 300 {
-                    *last = now;
-                    eprintln!("[Shortcut] Ctrl+Space pressed - toggling window");
-                    toggle_main_window(&handle);
-                } else {
-                    eprintln!("[Shortcut] Ctrl+Space skipped (debounce: {}ms)", now.duration_since(*last).as_millis());
-                }
-            }) {
-                eprintln!("Warning: Failed to register shortcut handler: {}", e);
-            }
+            // 【新特性】全局快捷键将在前端初始化时动态注册
+            // 这里不再硬编码注册，允许用户自定义快捷键
+            eprintln!("[Shortcut] Global shortcut will be registered dynamically from frontend settings");
 
             // 不设置焦点自动隐藏，改为在 open_plugin_window 中显式隐藏主窗口
             // 这样避免了焦点事件处理的竞态问题
@@ -307,6 +284,8 @@ pub fn run() {
             commands::log_frontend_message,
             commands::open_path,
             commands::reveal_in_folder,
+            commands::update_global_shortcut,  // 【新特性】更新全局快捷键
+            commands::check_shortcut_available,  // 【新特性】检查快捷键是否可用
             // 进程管理命令
             process_manager::process_list,
             process_manager::process_get,

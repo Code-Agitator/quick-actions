@@ -1683,3 +1683,232 @@ pub fn reveal_in_folder(path: String, app: tauri::AppHandle) -> Result<(), Strin
     eprintln!("[RevealInFolder] Successfully revealed: {}", path);
     Ok(())
 }
+
+/// 【新特性】更新全局快捷键
+#[tauri::command]
+pub fn update_global_shortcut(
+    shortcut: String,
+    app: tauri::AppHandle,
+) -> Result<String, String> {
+    use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, Code, Modifiers};
+    
+    eprintln!("[Shortcut] Updating global shortcut to: {}", shortcut);
+    
+    // 解析快捷键字符串
+    let parsed_shortcut = parse_shortcut(&shortcut)?;
+    
+    // 注销所有已注册的快捷键
+    let global_shortcut = app.global_shortcut();
+    
+    // 尝试注销旧的快捷键（如果存在）
+    let old_shortcuts = vec!["Ctrl+Space", "Alt+Space", "Ctrl+Shift+Space", "Alt+Shift+Space", "Ctrl+`", "Alt+`"];
+    for old_sc in old_shortcuts {
+        if let Ok(sc) = parse_shortcut(old_sc) {
+            let _ = global_shortcut.unregister(sc);
+        }
+    }
+    
+    // 注册新的快捷键
+    let shortcut_for_log = shortcut.clone(); // 克隆一份用于日志
+    match global_shortcut.on_shortcut(parsed_shortcut.clone(), move |_app, _sc, event| {
+        use tauri_plugin_global_shortcut::ShortcutState;
+        
+        if event.state() != ShortcutState::Pressed {
+            return;
+        }
+        
+        eprintln!("[Shortcut] {} pressed - toggling window", shortcut_for_log);
+        
+        // 切换主窗口
+        if let Some(window) = _app.get_webview_window("main") {
+            let _ = toggle_window(window, _app.clone());
+        }
+    }) {
+        Ok(_) => {
+            eprintln!("[Shortcut] ✓ Successfully registered: {}", shortcut);
+            Ok(shortcut)
+        }
+        Err(e) => {
+            eprintln!("[Shortcut] ✗ Failed to register {}: {}", shortcut, e);
+            Err(format!("Failed to register shortcut: {}", e))
+        }
+    }
+}
+
+/// 【新特性】检查快捷键是否可用（未被占用）
+#[tauri::command]
+pub fn check_shortcut_available(
+    shortcut: String,
+    app: tauri::AppHandle,
+) -> Result<bool, String> {
+    use tauri_plugin_global_shortcut::GlobalShortcutExt;
+    
+    eprintln!("[Shortcut] Checking availability for: {}", shortcut);
+    
+    // 解析快捷键字符串
+    let parsed_shortcut = match parse_shortcut(&shortcut) {
+        Ok(sc) => sc,
+        Err(e) => {
+            eprintln!("[Shortcut] Invalid shortcut format: {}", e);
+            return Err(format!("Invalid shortcut format: {}", e));
+        }
+    };
+    
+    let global_shortcut = app.global_shortcut();
+    
+    // 【关键修复】先尝试注销，如果能注销说明是我们自己注册的
+    // 这种情况下，我们认为这个快捷键是“可用”的（因为是我们自己在用）
+    let was_registered_by_us = global_shortcut.unregister(parsed_shortcut.clone()).is_ok();
+    
+    if was_registered_by_us {
+        eprintln!("[Shortcut] Shortcut {} was registered by us, re-registering...", shortcut);
+        
+        // 重新注册回来，保持功能正常
+        match global_shortcut.on_shortcut(parsed_shortcut.clone(), move |_app, _sc, event| {
+            use tauri_plugin_global_shortcut::ShortcutState;
+            
+            if event.state() != ShortcutState::Pressed {
+                return;
+            }
+            
+            eprintln!("[Shortcut] {} pressed - toggling window", shortcut);
+            
+            // 切换主窗口
+            if let Some(window) = _app.get_webview_window("main") {
+                let _ = toggle_window(window, _app.clone());
+            }
+        }) {
+            Ok(_) => {
+                eprintln!("[Shortcut] ✓ Re-registered successfully");
+            }
+            Err(e) => {
+                eprintln!("[Shortcut] ✗ Failed to re-register: {}", e);
+            }
+        }
+        
+        // 返回 true，因为这是我们自己的快捷键，不算冲突
+        return Ok(true);
+    }
+    
+    // 如果不是我们注册的，尝试临时注册来测试是否被其他应用占用
+    match global_shortcut.on_shortcut(parsed_shortcut.clone(), move |_app, _sc, _event| {
+        // 空回调，仅用于测试
+    }) {
+        Ok(_) => {
+            // 注册成功，说明快捷键可用，立即注销
+            let _ = global_shortcut.unregister(parsed_shortcut);
+            eprintln!("[Shortcut] ✓ Shortcut {} is available", shortcut);
+            Ok(true)
+        }
+        Err(e) => {
+            // 注册失败，说明快捷键被其他应用占用或无效
+            eprintln!("[Shortcut] ✗ Shortcut {} is not available (occupied by other app): {}", shortcut, e);
+            Ok(false)
+        }
+    }
+}
+
+/// 解析快捷键字符串为 Shortcut 对象
+fn parse_shortcut(shortcut_str: &str) -> Result<tauri_plugin_global_shortcut::Shortcut, String> {
+    use tauri_plugin_global_shortcut::{Shortcut, Modifiers};
+    
+    let parts: Vec<&str> = shortcut_str.split('+').collect();
+    
+    if parts.is_empty() {
+        return Err("Invalid shortcut format".to_string());
+    }
+    
+    let mut modifiers = Modifiers::empty();
+    let mut key_code: Option<tauri_plugin_global_shortcut::Code> = None;
+    
+    for (i, part) in parts.iter().enumerate() {
+        let part_lower = part.trim().to_lowercase();
+        
+        match part_lower.as_str() {
+            "ctrl" | "control" => modifiers |= Modifiers::CONTROL,
+            "alt" => modifiers |= Modifiers::ALT,
+            "shift" => modifiers |= Modifiers::SHIFT,
+            "cmd" | "meta" | "command" | "super" => modifiers |= Modifiers::SUPER,
+            _ => {
+                // 最后一部分应该是按键
+                if i == parts.len() - 1 {
+                    key_code = Some(parse_key_code(part)?);
+                } else {
+                    return Err(format!("Invalid modifier: {}", part));
+                }
+            }
+        }
+    }
+    
+    let code = key_code.ok_or("No key specified in shortcut")?;
+    
+    Ok(Shortcut::new(Some(modifiers), code))
+}
+
+/// 解析按键代码
+fn parse_key_code(key: &str) -> Result<tauri_plugin_global_shortcut::Code, String> {
+    use tauri_plugin_global_shortcut::Code;
+    
+    match key.to_lowercase().as_str() {
+        "space" => Ok(Code::Space),
+        "`" | "backquote" => Ok(Code::Backquote),
+        "a" => Ok(Code::KeyA),
+        "b" => Ok(Code::KeyB),
+        "c" => Ok(Code::KeyC),
+        "d" => Ok(Code::KeyD),
+        "e" => Ok(Code::KeyE),
+        "f" => Ok(Code::KeyF),
+        "g" => Ok(Code::KeyG),
+        "h" => Ok(Code::KeyH),
+        "i" => Ok(Code::KeyI),
+        "j" => Ok(Code::KeyJ),
+        "k" => Ok(Code::KeyK),
+        "l" => Ok(Code::KeyL),
+        "m" => Ok(Code::KeyM),
+        "n" => Ok(Code::KeyN),
+        "o" => Ok(Code::KeyO),
+        "p" => Ok(Code::KeyP),
+        "q" => Ok(Code::KeyQ),
+        "r" => Ok(Code::KeyR),
+        "s" => Ok(Code::KeyS),
+        "t" => Ok(Code::KeyT),
+        "u" => Ok(Code::KeyU),
+        "v" => Ok(Code::KeyV),
+        "w" => Ok(Code::KeyW),
+        "x" => Ok(Code::KeyX),
+        "y" => Ok(Code::KeyY),
+        "z" => Ok(Code::KeyZ),
+        "0" => Ok(Code::Digit0),
+        "1" => Ok(Code::Digit1),
+        "2" => Ok(Code::Digit2),
+        "3" => Ok(Code::Digit3),
+        "4" => Ok(Code::Digit4),
+        "5" => Ok(Code::Digit5),
+        "6" => Ok(Code::Digit6),
+        "7" => Ok(Code::Digit7),
+        "8" => Ok(Code::Digit8),
+        "9" => Ok(Code::Digit9),
+        "f1" => Ok(Code::F1),
+        "f2" => Ok(Code::F2),
+        "f3" => Ok(Code::F3),
+        "f4" => Ok(Code::F4),
+        "f5" => Ok(Code::F5),
+        "f6" => Ok(Code::F6),
+        "f7" => Ok(Code::F7),
+        "f8" => Ok(Code::F8),
+        "f9" => Ok(Code::F9),
+        "f10" => Ok(Code::F10),
+        "f11" => Ok(Code::F11),
+        "f12" => Ok(Code::F12),
+        "enter" | "return" => Ok(Code::Enter),
+        "escape" | "esc" => Ok(Code::Escape),
+        "tab" => Ok(Code::Tab),
+        "delete" | "del" => Ok(Code::Delete),
+        "backspace" => Ok(Code::Backspace),
+        "arrowup" | "up" => Ok(Code::ArrowUp),
+        "arrowdown" | "down" => Ok(Code::ArrowDown),
+        "arrowleft" | "left" => Ok(Code::ArrowLeft),
+        "arrowright" | "right" => Ok(Code::ArrowRight),
+        _ => Err(format!("Unsupported key: {}", key)),
+    }
+}

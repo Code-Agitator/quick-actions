@@ -8,6 +8,7 @@ export interface AppSettings {
   enableAnimations: boolean;
   windowOpacity: number; // 窗口透明度 (0.5 - 1.0)
   layoutDensity: 'compact' | 'comfortable'; // 布局密度
+  globalShortcut: string; // 全局快捷键，默认 Ctrl+Space
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -18,6 +19,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   enableAnimations: true,
   windowOpacity: 0.98, // 默认 98% 不透明度
   layoutDensity: 'comfortable', // 默认宽松布局
+  globalShortcut: 'Ctrl+Space', // 默认快捷键
 };
 
 const SETTINGS_KEY = 'quick-actions-settings';

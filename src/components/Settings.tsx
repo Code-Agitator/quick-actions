@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { IoSettingsOutline, IoCubeOutline, IoColorPaletteOutline, IoPowerOutline, IoInformationCircleOutline, IoClose, IoTrashOutline, IoBugOutline } from 'react-icons/io5';
 import { Pin, PinOff } from 'lucide-react';
@@ -111,6 +111,18 @@ export function Settings({ onClose, onTogglePin }: SettingsProps) {
                 onShowTrayIconChange={(value) => updateSetting('showTrayIcon', value)}
                 enableAnimations={settings.enableAnimations}
                 onEnableAnimationsChange={(value) => updateSetting('enableAnimations', value)}
+                globalShortcut={settings.globalShortcut}
+                onGlobalShortcutChange={async (value) => {
+                  updateSetting('globalShortcut', value);
+                  // 立即更新后端快捷键注册
+                  try {
+                    console.log('[Settings] Updating global shortcut to:', value);
+                    await invoke('update_global_shortcut', { shortcut: value });
+                    console.log('[Settings] ✓ Global shortcut updated successfully');
+                  } catch (error) {
+                    console.error('[Settings] Failed to update global shortcut:', error);
+                  }
+                }}
               />
             )}
             {activeTab === 'about' && <AboutTab onReset={resetSettings} />}
@@ -436,6 +448,8 @@ interface GeneralTabProps {
   onShowTrayIconChange: (value: boolean) => void;
   enableAnimations: boolean;
   onEnableAnimationsChange: (value: boolean) => void;
+  globalShortcut: string;
+  onGlobalShortcutChange: (value: string) => void;
 }
 
 function GeneralTab({
@@ -447,7 +461,53 @@ function GeneralTab({
   onShowTrayIconChange,
   enableAnimations,
   onEnableAnimationsChange,
+  globalShortcut,
+  onGlobalShortcutChange,
 }: GeneralTabProps) {
+  // 【新特性】快捷键可用性状态
+  const [shortcutAvailable, setShortcutAvailable] = useState<boolean | null>(null);
+  const [checkingShortcut, setCheckingShortcut] = useState(false);
+  
+  // 使用 ref 跟踪是否已经检查过当前快捷键，避免重复检查
+  const lastCheckedShortcut = useRef<string>('');
+
+  // 监听快捷键变化，检查是否可用
+  useEffect(() => {
+    // 如果和上次检查的是同一个快捷键，跳过检查
+    if (globalShortcut === lastCheckedShortcut.current) {
+      return;
+    }
+    
+    let mounted = true;
+    
+    const checkAvailability = async () => {
+      setCheckingShortcut(true);
+      try {
+        const available = await invoke('check_shortcut_available', { shortcut: globalShortcut });
+        if (mounted) {
+          setShortcutAvailable(available);
+          lastCheckedShortcut.current = globalShortcut; // 记录已检查的快捷键
+          console.log('[Settings] Shortcut availability:', available);
+        }
+      } catch (error) {
+        console.error('[Settings] Failed to check shortcut availability:', error);
+        if (mounted) {
+          setShortcutAvailable(null);
+        }
+      } finally {
+        if (mounted) {
+          setCheckingShortcut(false);
+        }
+      }
+    };
+
+    // 立即执行检查，不使用延迟（因为已经有去重逻辑）
+    checkAvailability();
+    
+    return () => {
+      mounted = false;
+    };
+  }, [globalShortcut]);
   return (
     <div className="space-y-4">
       <SettingsCard className="p-4.5">
@@ -486,6 +546,63 @@ function GeneralTab({
               />
               <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
             </label>
+          </div>
+        </div>
+      </SettingsCard>
+
+      <SettingsCard className="p-4.5">
+        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 tracking-tight">快捷键设置</h3>
+        
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+              呼出窗口快捷键
+            </label>
+            <div className="flex items-center gap-2">
+              <select
+                value={globalShortcut}
+                onChange={(e) => onGlobalShortcutChange(e.target.value)}
+                disabled={checkingShortcut}
+                className={`w-full max-w-xs px-2.5 py-1.5 border rounded-md bg-white dark:bg-gray-700/60 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 outline-none transition-all duration-150 backdrop-blur-sm ${
+                  checkingShortcut 
+                    ? 'border-gray-300/50 dark:border-white/10 opacity-60 cursor-not-allowed'
+                    : shortcutAvailable === false
+                    ? 'border-yellow-400 dark:border-yellow-500/60'
+                    : 'border-gray-300/50 dark:border-white/10'
+                }`}
+              >
+                <option value="Ctrl+Space">Ctrl + Space</option>
+                <option value="Alt+Space">Alt + Space</option>
+                <option value="Ctrl+Shift+Space">Ctrl + Shift + Space</option>
+                <option value="Alt+Shift+Space">Alt + Shift + Space</option>
+                <option value="Ctrl+`">Ctrl + `</option>
+                <option value="Alt+`">Alt + `</option>
+              </select>
+              
+              {/* 状态指示器 - 仅在检查中或冲突时显示 */}
+              {checkingShortcut && (
+                <div className="flex-shrink-0 w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+              )}
+              {!checkingShortcut && shortcutAvailable === false && (
+                <div className="flex-shrink-0 flex items-center gap-1 text-yellow-600 dark:text-yellow-400">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+              )}
+            </div>
+            
+            {/* 状态提示文字 - 仅在冲突时显示 */}
+            {checkingShortcut && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
+                ⏳ 正在检查快捷键可用性...
+              </p>
+            )}
+            {!checkingShortcut && shortcutAvailable === false && (
+              <p className="text-xs text-yellow-600 dark:text-yellow-400/80 mt-1.5">
+                ⚠️ 此快捷键可能已被其他应用占用
+              </p>
+            )}
           </div>
         </div>
       </SettingsCard>

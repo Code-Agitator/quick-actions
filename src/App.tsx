@@ -30,6 +30,29 @@ function App() {
     initDebug(debugSettings);
   }, [debugSettings]);
 
+  // 【新特性】应用启动时注册全局快捷键
+  useEffect(() => {
+    const registerShortcut = async () => {
+      try {
+        const settingsStr = localStorage.getItem('quick-actions-settings');
+        if (settingsStr) {
+          const settings = JSON.parse(settingsStr);
+          const shortcut = settings.globalShortcut || 'Ctrl+Space';
+          console.log('[App] Registering global shortcut:', shortcut);
+          
+          await invoke('update_global_shortcut', { shortcut });
+          console.log('[App] ✓ Global shortcut registered successfully');
+        }
+      } catch (error) {
+        console.error('[App] Failed to register global shortcut:', error);
+      }
+    };
+    
+    // 延迟执行，确保后端已就绪
+    const timer = setTimeout(registerShortcut, 500);
+    return () => clearTimeout(timer);
+  }, []);
+
   // 监听 query 变化，动态调整窗口高度
   useEffect(() => {
     const shouldExpand = query.length > 0;
@@ -303,6 +326,14 @@ function App() {
           break;
         case 'Escape':
           console.log('[Main Window] ESC pressed');
+          
+          // 【修复】如果在设置页面，先返回搜索页
+          if (showSettings) {
+            console.log('[Main Window] In settings page, closing settings...');
+            setShowSettings(false);
+            return;
+          }
+          
           // 【新交互】如果搜索框有内容则清空，否则隐藏窗口
           if (query.length > 0) {
             console.log('[Main Window] Clearing search query');
@@ -331,7 +362,7 @@ function App() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown, true);
     };
-  }, [searchResults, selectedIndex, plugins]);
+  }, [searchResults, selectedIndex, plugins, showSettings, query]);
 
   // 当搜索结果变化时，重置选中索引
   useEffect(() => {
