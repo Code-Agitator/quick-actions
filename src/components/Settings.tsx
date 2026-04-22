@@ -637,7 +637,7 @@ function DebugTab({ debugSettings, onToggleDebug, isDebugOpen, onTogglePanel }: 
           <div className="flex items-center justify-between">
             <span className="text-sm text-gray-400">已启用调试选项</span>
             <span className="text-sm font-medium text-purple-400">
-              {Object.values(debugSettings).filter(Boolean).length} / {debugOptions.length}
+              {debugSettings ? Object.values(debugSettings).filter(Boolean).length : 0} / {debugOptions.length}
             </span>
           </div>
         </div>

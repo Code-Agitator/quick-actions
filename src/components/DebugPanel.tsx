@@ -68,7 +68,7 @@ export function DebugPanel() {
       {/* Footer */}
       <div className="px-4 py-2 bg-gray-800 border-t border-gray-700">
         <div className="text-xs text-gray-400">
-          已启用: {Object.values(settings).filter(Boolean).length} / {debugOptions.length}
+          已启用: {settings ? Object.values(settings).filter(Boolean).length : 0} / {debugOptions.length}
         </div>
       </div>
     </div>

@@ -110,6 +110,7 @@ export function PluginUI({ plugin, onClose }: PluginUIProps) {
           return;
         }
         
+        // 安全地调用 render 方法
         const result = (pluginModule as any).render({ 
           query: '', 
           onResult: (result: any) => console.log('Plugin result:', result)
@@ -122,8 +123,9 @@ export function PluginUI({ plugin, onClose }: PluginUIProps) {
           containerRef.current.appendChild(result);
         }
       } catch (renderError) {
-        console.error('Render error:', renderError);
-        setError('渲染插件界面时出错');
+        console.error('[PluginUI] Render error:', renderError);
+        console.error('[PluginUI] Error stack:', renderError instanceof Error ? renderError.stack : 'No stack');
+        setError(`渲染插件界面时出错: ${renderError instanceof Error ? renderError.message : String(renderError)}`);
       }
     }
   }, [pluginModule, plugin.id]);

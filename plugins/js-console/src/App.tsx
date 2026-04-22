@@ -380,8 +380,9 @@ const App: React.FC<AppProps> = ({ query: _query, onResult: _onResult }) => {
       };
 
       // 使用 Function 构造器创建沙箱环境，保持上下文
-      const contextKeys = Object.keys(context);
-      const contextValues = Object.values(context);
+      const safeContext = context || {};
+      const contextKeys = Object.keys(safeContext);
+      const contextValues = Object.values(safeContext);
       
       const func = new Function(...contextKeys, `
         "use strict";
@@ -430,7 +431,7 @@ const App: React.FC<AppProps> = ({ query: _query, onResult: _onResult }) => {
       }
 
       // 更新上下文（捕获新定义的变量）
-      const newContext = { ...context };
+      const newContext = { ...safeContext };
       
       // 尝试从代码中提取变量定义
       const varMatches = inputCode.match(/(?:const|let|var)\s+(\w+)\s*=/g);

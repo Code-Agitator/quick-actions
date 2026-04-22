@@ -357,7 +357,7 @@ const App: React.FC = () => {
       </div>
 
       {/* 进程列表 */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-hidden">
         {loading && allProcesses.length === 0 ? (
           <div className="flex items-center justify-center h-full text-gray-500">
             <div className="text-center">

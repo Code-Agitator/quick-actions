@@ -4,6 +4,7 @@ import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { PluginUI } from './components/PluginUI';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Plugin } from './types/plugin';
 
 export function PluginApp() {
@@ -82,7 +83,7 @@ export function PluginApp() {
           // 将模块附加到 plugin 对象
           pluginToRender = { ...pluginData, customUI: pluginModule } as any;
         } else {
-          console.warn('[Plugin Window] Module does not have render method. Available methods:', Object.keys(pluginModule));
+          console.warn('[Plugin Window] Module does not have render method. Available methods:', pluginModule ? Object.keys(pluginModule) : 'module is null/undefined');
         }
       } catch (error) {
         console.error('[Plugin Window] Error loading module:', error);
@@ -250,10 +251,12 @@ export function PluginApp() {
 
   return (
     <div className="h-screen ios-frosted" data-tauri-drag-region>
-      <PluginUI 
-        plugin={selectedPlugin} 
-        onClose={handleClose}
-      />
+      <ErrorBoundary>
+        <PluginUI 
+          plugin={selectedPlugin} 
+          onClose={handleClose}
+        />
+      </ErrorBoundary>
     </div>
   );
 }
