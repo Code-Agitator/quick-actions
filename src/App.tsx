@@ -447,7 +447,7 @@ function App() {
             className="flex-1 flex flex-col overflow-hidden ios-frosted h-full"
           >
             {/* 搜索栏 - 与 Spotlight 一致的极简设计 */}
-            <div className="flex-shrink-0 px-4 flex items-center" style={{ height: '64px' }}>
+            <div className="flex-shrink-0 flex items-center w-full" style={{ height: '64px' }}>
               <SearchBar 
                 ref={searchBarRef}
                 value={query} 
