@@ -226,3 +226,49 @@ html:not(.dark) .ios-frosted-card {
   pointer-events: none;
   z-index: -1;
 }
+
+/* HeroUI Input 无边框样式 - 主窗体搜索框专用 */
+.search-bar-input .input-wrapper {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+.search-bar-input .input-wrapper[data-hovered="true"],
+.search-bar-input .input-wrapper:hover {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+.search-bar-input .input-wrapper[data-focus="true"],
+.search-bar-input .input-wrapper:focus-within {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  ring: 0 !important;
+}
+
+.search-bar-input .input-wrapper[data-focus-visible="true"] {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  ring: 0 !important;
+}
+
+.search-bar-input input {
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  ring: 0 !important;
+}
+
+.search-bar-input input:focus,
+.search-bar-input input:focus-visible {
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  ring: 0 !important;
+}

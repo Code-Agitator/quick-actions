@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { Card, Button, Chip, Tooltip } from '@heroui/react';
 import { IoSettingsOutline, IoCubeOutline, IoColorPaletteOutline, IoPowerOutline, IoInformationCircleOutline, IoClose, IoTrashOutline, IoBugOutline } from 'react-icons/io5';
 import { Pin, PinOff } from 'lucide-react';
 import { usePlugins } from '../hooks/usePlugins';
@@ -13,7 +14,7 @@ interface SettingsProps {
   onTogglePin?: (id: string, pinned: boolean) => void;
 }
 
-// 可复用的设置卡片组件
+// 可复用的设置卡片组件 - 使用 HeroUI Card
 interface SettingsCardProps {
   children: React.ReactNode;
   className?: string;
@@ -21,9 +22,9 @@ interface SettingsCardProps {
 
 function SettingsCard({ children, className = '' }: SettingsCardProps) {
   return (
-    <div className={`bg-white/50 dark:bg-white/[0.06] border border-gray-200/50 dark:border-white/10 rounded-md backdrop-blur-sm ${className}`}>
+    <Card className={`bg-white/50 dark:bg-white/[0.06] border border-gray-200/50 dark:border-white/10 rounded-md backdrop-blur-sm ${className}`}>
       {children}
-    </div>
+    </Card>
   );
 }
 
@@ -43,16 +44,19 @@ export function Settings({ onClose, onTogglePin }: SettingsProps) {
           <div className="px-4 py-3 border-b border-gray-200/50 dark:border-white/10">
             <div className="flex items-center justify-between">
               <h1 className="text-xs font-semibold text-gray-700 dark:text-gray-200 tracking-wide uppercase">设置</h1>
-              <button
-                onClick={onClose}
+              <Button
+                isIconOnly
+                size="sm"
+                variant="ghost"
+                onPress={onClose}
                 className="p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded-md transition-colors duration-150"
               >
                 <IoClose className="text-lg text-gray-500 dark:text-gray-400" />
-              </button>
+              </Button>
             </div>
           </div>
 
-          {/* Navigation Items */}
+          {/* Navigation Items - 使用自定义导航 */}
           <nav className="flex-1 py-2 px-2 space-y-0.5 overflow-y-auto">
             <NavItem
               active={activeTab === 'plugins'}
@@ -202,9 +206,13 @@ function PluginsTab({ plugins, loading, onUninstall, onTogglePin }: PluginsTabPr
     <div className="space-y-3">
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 tracking-tight">已安装插件</h2>
-        <button className="px-3 py-1.5 bg-blue-600/80 hover:bg-blue-700/90 text-white rounded-md transition-colors duration-150 text-xs font-medium shadow-sm backdrop-blur-sm border border-white/10 dark:border-white/15">
+        <Button
+          size="sm"
+          variant="primary"
+          className="px-3 py-1.5 bg-blue-600/80 hover:bg-blue-700/90 text-white rounded-md transition-colors duration-150 text-xs font-medium shadow-sm backdrop-blur-sm border border-white/10 dark:border-white/15"
+        >
           安装插件
-        </button>
+        </Button>
       </div>
     
       {loading ? (
@@ -227,44 +235,69 @@ function PluginsTab({ plugins, loading, onUninstall, onTogglePin }: PluginsTabPr
                     <div className="flex items-center gap-2">
                       <span className="text-lg opacity-90">{plugin.icon || '🔌'}</span>
                       <h3 className="font-medium text-gray-900 dark:text-gray-100 text-sm tracking-tight">{plugin.name}</h3>
-                      <span className="text-[10px] px-1.5 py-0.5 bg-black/5 dark:bg-white/[0.08] text-gray-600 dark:text-gray-400/80 rounded-md font-medium">v{plugin.version}</span>
+                      <Chip
+                        size="sm"
+                        variant="soft"
+                        className="text-[10px] px-1.5 py-0.5 bg-black/5 dark:bg-white/[0.08] text-gray-600 dark:text-gray-400/80 rounded-md font-medium"
+                      >
+                        v{plugin.version}
+                      </Chip>
                       {isPinned && (
-                        <span className="text-[10px] px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-md font-medium flex items-center gap-1">
+                        <Chip
+                          size="sm"
+                          color="accent"
+                          variant="soft"
+                          className="text-[10px] px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-md font-medium flex items-center gap-1"
+                        >
                           <Pin className="w-3 h-3" />
                           已固定
-                        </span>
+                        </Chip>
                       )}
                     </div>
                     <p className="text-xs text-gray-600 dark:text-gray-400/70 mt-1 leading-relaxed">{plugin.description}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     {onTogglePin && (
-                      <button
-                        onClick={() => onTogglePin(plugin.id, !isPinned)}
-                        className={`p-1.5 rounded-md transition-all duration-150 ${
-                          isPinned
-                            ? 'text-blue-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20'
-                            : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800'
-                        }`}
-                        title={isPinned ? '取消固定' : '固定在搜索结果'}
-                      >
-                        {isPinned ? (
-                          <Pin className="w-4 h-4" />
-                        ) : (
-                          <PinOff className="w-4 h-4" />
-                        )}
-                      </button>
+                      <Tooltip>
+                        <Button
+                          isIconOnly
+                          size="sm"
+                          variant="ghost"
+                          onPress={() => onTogglePin(plugin.id, !isPinned)}
+                          className={`p-1.5 rounded-md transition-all duration-150 ${
+                            isPinned
+                              ? 'text-blue-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+                              : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800'
+                          }`}
+                        >
+                          {isPinned ? (
+                            <Pin className="w-4 h-4" />
+                          ) : (
+                            <PinOff className="w-4 h-4" />
+                          )}
+                        </Button>
+                        <Tooltip.Content>
+                          {isPinned ? '取消固定' : '固定在搜索结果'}
+                        </Tooltip.Content>
+                      </Tooltip>
                     )}
-                    <button
-                      onClick={() => {
-                        invoke('log_frontend_message', { level: 'info', message: `User clicked uninstall for plugin: ${plugin.id}` });
-                        onUninstall(plugin.id);
-                      }}
-                      className="p-1.5 text-red-500/80 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-all duration-150"
-                      title="卸载插件"
-                    >
-                      <IoTrashOutline className="text-base" />
-                    </button>
+                    <Tooltip>
+                      <Button
+                        isIconOnly
+                        size="sm"
+                        variant="ghost"
+                        className="p-1.5 text-red-500/80 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-all duration-150"
+                        onPress={() => {
+                          invoke('log_frontend_message', { level: 'info', message: `User clicked uninstall for plugin: ${plugin.id}` });
+                          onUninstall(plugin.id);
+                        }}
+                      >
+                        <IoTrashOutline className="text-base" />
+                      </Button>
+                      <Tooltip.Content>
+                        卸载插件
+                      </Tooltip.Content>
+                    </Tooltip>
                   </div>
                 </div>
               </SettingsCard>

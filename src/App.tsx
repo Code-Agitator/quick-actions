@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { SearchBar, SearchBarRef } from "./components/SearchBar";
-import { SearchResultList } from "./components/SearchResultList";
+import { SearchResultListMemo } from "./components/SearchResultList";
 import { Settings } from "./components/Settings";
 import { usePlugins } from "./hooks/usePlugins";
 import { useApplications } from "./hooks/useApplications";
@@ -290,7 +290,9 @@ function App() {
     const result = searchCache.search(query);
     endTimer();
     
-    return result;
+    // 性能优化：限制最多展示20条结果
+    const MAX_RESULTS = 20;
+    return result.slice(0, MAX_RESULTS);
   }, [query, plugins.length, applications.length, indexReady]);
 
   // 键盘导航
@@ -462,8 +464,8 @@ function App() {
             {/* 内容区域 - 仅在展开时显示 */}
             {isExpanded && (
               <div className="flex-1 overflow-y-auto scrollbar-thin py-1">
-                {/* 搜索结果列表 */}
-                <SearchResultList 
+                {/* 搜索结果列表 - 使用优化后的组件 */}
+                <SearchResultListMemo 
                   results={searchResults} 
                   onExecute={handleExecute}
                   selectedIndex={selectedIndex}

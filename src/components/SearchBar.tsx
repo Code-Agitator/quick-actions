@@ -1,4 +1,5 @@
 import { useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
+import { Input } from '@heroui/react';
 import { IoSettingsOutline } from 'react-icons/io5';
 
 export interface SearchBarRef {
@@ -47,25 +48,27 @@ export const SearchBar = forwardRef<SearchBarRef, SearchBarProps>(
 
     return (
       <div className="w-full h-full flex items-center">
-        {/* 搜索框 - 自适应主题 */}
+        {/* 搜索框 - 使用 HeroUI Input */}
         <div className="flex items-center gap-3 px-2 w-full h-full">
           {/* 搜索图标 */}
           <svg className="w-5 h-5 text-gray-400 dark:text-gray-300/80 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           
-          {/* 输入框 - 自适应字体颜色 */}
-          <input
-            ref={inputRef}
+          {/* 输入框 - 使用 HeroUI Input，通过全局 CSS 移除边框 */}
+          <Input
+            ref={inputRef as any}
             autoFocus
             type="text"
             placeholder="搜索插件和应用..."
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            className="flex-1 bg-transparent text-[17px] font-normal text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-500/60 outline-none border-none tracking-tight"
+            fullWidth
+            variant="secondary"
+            className="search-bar-input flex-1 [&_input]:text-[17px] [&_input]:font-normal [&_input]:text-gray-900 dark:[&_input]:text-gray-100 [&_input]:placeholder-gray-500 dark:[&_input]:placeholder-gray-500/60 [&_input]:tracking-tight"
           />
           
-          {/* 设置按钮 - 自适应样式 */}
+          {/* 设置按钮 */}
           {onOpenSettings && (
             <button
               onClick={(e) => {

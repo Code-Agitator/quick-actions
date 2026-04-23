@@ -1,5 +1,5 @@
-import { motion } from 'framer-motion';
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, memo } from 'react';
+import { ListBox, Chip, Kbd } from '@heroui/react';
 import { SearchResult } from '../types/searchResult';
 import { getAppIconConfig } from '../utils/appIcons';
 import { useAppSettings } from '../hooks/useAppSettings';
@@ -26,10 +26,6 @@ export function SearchResultList({
   
   // 根据布局密度设置样式
   const isCompact = settings.layoutDensity === 'compact';
-  const itemPadding = isCompact ? 'px-3 py-1.5' : 'px-3 py-2.5';
-  const iconSize = isCompact ? 'w-8 h-8' : 'w-10 h-10';
-  const iconInnerSize = isCompact ? 'w-4 h-4' : 'w-5 h-5';
-  const gapSize = isCompact ? 'gap-2' : 'gap-3';
 
   // 滚动到选中项
   useEffect(() => {
@@ -90,86 +86,119 @@ export function SearchResultList({
       className="space-y-0.5 px-2"
       onMouseMove={handleMouseMove}
     >
-      {results.map((result, index) => {
-        // 优先使用后端提取的真实图标（Base64）
-        const hasRealIcon = result.type === 'application' && result.icon && result.icon.startsWith('data:image');
-        
-        // 如果没有真实图标，使用前端映射表的 React 图标
-        const iconConfig = !hasRealIcon && result.type === 'application' 
-          ? getAppIconConfig(result.title)
-          : null;
-        
-        const IconComponent = iconConfig?.icon;
-        const iconColor = iconConfig?.color;
-        const isSelected = index === selectedIndex;
-        
-        return (
-          <motion.div
-            key={result.id}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.08 }}
-          >
-            <div
-              onClick={() => onExecute(result)}
+      <ListBox
+        aria-label="搜索结果"
+        selectionMode="single"
+        selectedKeys={selectedIndex >= 0 && results[selectedIndex] ? [results[selectedIndex].id] : []}
+        onSelectionChange={(keys) => {
+          const key = Array.from(keys)[0];
+          if (key !== undefined) {
+            // 找到选中项的索引
+            const newIndex = results.findIndex(r => r.id === key);
+            if (newIndex !== -1) {
+              onSelectIndex(newIndex);
+            }
+          }
+        }}
+        className="w-full"
+      >
+        {results.map((result, index) => {
+          // 优先使用后端提取的真实图标（Base64）
+          const hasRealIcon = result.type === 'application' && result.icon && result.icon.startsWith('data:image');
+          
+          // 如果没有真实图标，使用前端映射表的 React 图标
+          const iconConfig = !hasRealIcon && result.type === 'application' 
+            ? getAppIconConfig(result.title)
+            : null;
+          
+          const IconComponent = iconConfig?.icon;
+          const iconColor = iconConfig?.color;
+          
+          return (
+            <ListBox.Item
+              key={result.id}
+              id={result.id}
+              textValue={result.title}
+              onPress={() => onExecute(result)}
               onMouseEnter={() => handleMouseEnter(index)}
-              className={`group flex items-center ${gapSize} ${itemPadding} rounded-md cursor-pointer transition-all duration-150 ${
-                isSelected 
+              className={`group cursor-pointer transition-all duration-150 ${
+                index === selectedIndex 
                   ? 'bg-black/5 dark:bg-white/[0.14]' 
                   : 'hover:bg-black/5 dark:hover:bg-white/[0.08]'
               }`}
             >
-              {/* 图标 - 自适应主题 */}
-              <div className={`${iconSize} flex items-center justify-center flex-shrink-0 rounded-md bg-gradient-to-br from-gray-200/70 to-gray-300/50 dark:from-gray-700/70 dark:to-gray-800/50 backdrop-blur-sm border border-gray-300/50 dark:border-white/15 overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_2px_4px_rgba(0,0,0,0.1)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_2px_4px_rgba(0,0,0,0.3)]`}>
-                {hasRealIcon ? (
-                  <img 
-                    src={result.icon} 
-                    alt={result.title}
-                    className="w-full h-full object-contain"
-                  />
-                ) : IconComponent ? (
-                  <IconComponent 
-                    className={iconInnerSize} 
-                    style={{ color: iconColor }}
-                  />
-                ) : (
-                  <span className="text-lg opacity-80">
-                    {result.icon || (result.type === 'plugin' ? '🔌' : '📱')}
-                  </span>
-                )}
-              </div>
-              
-              {/* 信息 - 自适应字体颜色 */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <h3 className={`text-[15px] font-medium truncate tracking-tight ${
-                    isSelected 
-                      ? 'text-gray-900 dark:text-gray-50' 
-                      : 'text-gray-700 dark:text-gray-200'
-                  }`}>
-                    {result.title}
-                  </h3>
-                  <span className="text-[10px] px-1.5 py-0.5 bg-black/5 dark:bg-white/[0.1] text-gray-600 dark:text-gray-400/90 rounded-md font-medium backdrop-blur-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_1px_2px_rgba(0,0,0,0.08)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_1px_2px_rgba(0,0,0,0.2)] border border-gray-300/50 dark:border-white/[0.08]">
-                    {getTypeLabel(result.type)}
-                  </span>
+              <div className={`flex items-center ${isCompact ? 'gap-2 py-1.5 px-3' : 'gap-3 py-2.5 px-3'}`}>
+                {/* 图标 - 使用 HeroUI Avatar */}
+                <div className={`${isCompact ? 'w-8 h-8' : 'w-10 h-10'} flex-shrink-0 rounded-md bg-gradient-to-br from-gray-200/70 to-gray-300/50 dark:from-gray-700/70 dark:to-gray-800/50 backdrop-blur-sm border border-gray-300/50 dark:border-white/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_2px_4px_rgba(0,0,0,0.1)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_2px_4px_rgba(0,0,0,0.3)] overflow-hidden`}>
+                  {hasRealIcon ? (
+                    <img 
+                      src={result.icon} 
+                      alt={result.title}
+                      className="w-full h-full object-contain"
+                    />
+                  ) : IconComponent ? (
+                    <IconComponent 
+                      className={isCompact ? 'w-4 h-4' : 'w-5 h-5'} 
+                      style={{ color: iconColor }}
+                    />
+                  ) : (
+                    <span className="text-lg opacity-80">
+                      {result.icon || (result.type === 'plugin' ? '🔌' : '📱')}
+                    </span>
+                  )}
                 </div>
-                {result.description && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400/60 truncate mt-0.5 font-normal">
-                    {result.description}
-                  </p>
-                )}
+                
+                {/* 信息 */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className={`truncate ${
+                      index === selectedIndex 
+                        ? 'text-gray-900 dark:text-gray-50' 
+                        : 'text-gray-700 dark:text-gray-200'
+                    }`}>
+                      {result.title}
+                    </h3>
+                    <Chip
+                      size="sm"
+                      variant="soft"
+                      className="text-[10px] px-1.5 py-0.5 bg-black/5 dark:bg-white/[0.1] text-gray-600 dark:text-gray-400/90 rounded-md font-medium backdrop-blur-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_1px_2px_rgba(0,0,0,0.08)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_1px_2px_rgba(0,0,0,0.2)] border border-gray-300/50 dark:border-white/[0.08]"
+                    >
+                      {getTypeLabel(result.type)}
+                    </Chip>
+                  </div>
+                  {result.description && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400/60 truncate mt-0.5 font-normal">
+                      {result.description}
+                    </p>
+                  )}
+                </div>
+                
+                {/* 快捷键提示 - 使用 HeroUI Kbd */}
+                <div className={`transition-all duration-150 text-xs flex-shrink-0 ${
+                  index === selectedIndex ? 'opacity-100 text-gray-500 dark:text-gray-400/80' : 'opacity-0 group-hover:opacity-60 text-gray-400 dark:text-gray-500/70'
+                }`}>
+                  <Kbd
+                    className="px-2 py-0.5 bg-black/5 dark:bg-white/[0.1] rounded-md text-[11px] font-medium border border-gray-300/50 dark:border-white/[0.1] backdrop-blur-sm text-gray-600 dark:text-gray-300/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_1px_2px_rgba(0,0,0,0.08)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_1px_2px_rgba(0,0,0,0.2)]"
+                  >
+                    ↵
+                  </Kbd>
+                </div>
               </div>
-              
-              {/* 快捷键提示 - 自适应样式 */}
-              <div className={`transition-all duration-150 text-xs flex-shrink-0 ${
-                isSelected ? 'opacity-100 text-gray-500 dark:text-gray-400/80' : 'opacity-0 group-hover:opacity-60 text-gray-400 dark:text-gray-500/70'
-              }`}>
-                <kbd className="px-2 py-0.5 bg-black/5 dark:bg-white/[0.1] rounded-md text-[11px] font-medium border border-gray-300/50 dark:border-white/[0.1] backdrop-blur-sm text-gray-600 dark:text-gray-300/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_1px_2px_rgba(0,0,0,0.08)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_1px_2px_rgba(0,0,0,0.2)]">↵</kbd>
-              </div>
-            </div>
-          </motion.div>
-        );
-      })}
+            </ListBox.Item>
+          );
+        })}
+      </ListBox>
     </div>
   );
 }
+
+// 性能优化：使用 memo 避免不必要的重新渲染
+export const SearchResultListMemo = memo(SearchResultList, (prevProps, nextProps) => {
+  // 只有当这些属性变化时才重新渲染
+  return (
+    prevProps.results === nextProps.results &&
+    prevProps.selectedIndex === nextProps.selectedIndex &&
+    prevProps.onExecute === nextProps.onExecute &&
+    prevProps.onSelectIndex === nextProps.onSelectIndex
+  );
+});
