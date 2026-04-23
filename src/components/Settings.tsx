@@ -5,6 +5,8 @@ import { Pin, PinOff } from 'lucide-react';
 import { usePlugins } from '../hooks/usePlugins';
 import { useDebug } from '../context/DebugContext';
 import { useAppSettings } from '../hooks/useAppSettings';
+import { userBehaviorTracker } from '../utils/userBehavior';
+import { searchCache } from '../utils/searchCache';
 
 interface SettingsProps {
   onClose: () => void;
@@ -176,7 +178,7 @@ interface PluginsTabProps {
 function PluginsTab({ plugins, loading, onUninstall, onTogglePin }: PluginsTabProps) {
   const { isPluginPinned, getPinnedPlugins } = useAppSettings();
   // 使用 state 来跟踪 pinned 插件列表，以便在变化时重新渲染
-  const [pinnedPlugins, setPinnedPlugins] = useState<Set<string>>(() => getPinnedPlugins());
+  const [_pinnedPlugins, setPinnedPlugins] = useState<Set<string>>(() => getPinnedPlugins());
 
   // 监听 pinned 插件变化
   useEffect(() => {
@@ -485,7 +487,7 @@ function GeneralTab({
       try {
         const available = await invoke('check_shortcut_available', { shortcut: globalShortcut });
         if (mounted) {
-          setShortcutAvailable(available);
+          setShortcutAvailable(available as boolean);
           lastCheckedShortcut.current = globalShortcut; // 记录已检查的快捷键
           console.log('[Settings] Shortcut availability:', available);
         }
@@ -721,6 +723,136 @@ interface DebugTabProps {
   onTogglePanel: () => void;
 }
 
+/**
+ * 导出用户行为统计概要到控制台
+ */
+function exportUserBehaviorSummary() {
+  const behaviorStats = userBehaviorTracker.getStats();
+  const cacheStats = searchCache.getStats();
+  
+  // 获取 localStorage 中的原始数据
+  const searchHistory = JSON.parse(localStorage.getItem('quick-actions-search-history') || '[]');
+  const userPreferences = JSON.parse(localStorage.getItem('quick-actions-user-preferences') || '[]');
+  const appSettings = JSON.parse(localStorage.getItem('quick-actions-settings') || '{}');
+  const pinnedPlugins = JSON.parse(localStorage.getItem('quick-actions-plugin-pinned') || '[]');
+
+  console.log('\n%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #8b5cf6; font-weight: bold');
+  console.log('%c📊 Quick Actions 使用习惯概要', 'color: #8b5cf6; font-size: 16px; font-weight: bold');
+  console.log('%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n', 'color: #8b5cf6; font-weight: bold');
+
+  // 1. 基本信息
+  console.log('%c🔹 基本信息', 'color: #3b82f6; font-size: 14px; font-weight: bold');
+  console.table({
+    '应用主题': appSettings.theme || 'system',
+    '布局密度': appSettings.layoutDensity || 'comfortable',
+    '窗口透明度': appSettings.windowOpacity || 0.98,
+    '全局快捷键': appSettings.globalShortcut || 'Ctrl+Space',
+    '固定插件数': pinnedPlugins.length,
+  });
+
+  // 2. 搜索统计
+  console.log('\n%c🔹 搜索统计', 'color: #3b82f6; font-size: 14px; font-weight: bold');
+  console.table({
+    '历史记录数': behaviorStats.historySize,
+    '偏好结果数': behaviorStats.preferencesCount,
+    '缓存查询数': cacheStats.cachedQueries,
+    '索引项目数': cacheStats.indexedItems,
+  });
+
+  // 3. Top 偏好结果
+  if (behaviorStats.topPreferences.length > 0) {
+    console.log('\n%c🔹 Top 偏好结果', 'color: #3b82f6; font-size: 14px; font-weight: bold');
+    console.table(
+      behaviorStats.topPreferences.map((pref, idx) => ({
+        '排名': idx + 1,
+        'ID': pref.id,
+        '偏好分数': pref.score,
+        '选择次数': pref.selectCount,
+      }))
+    );
+  }
+
+  // 4. 最近搜索历史（最近10条）
+  if (searchHistory.length > 0) {
+    console.log('\n%c🔹 最近搜索历史 (Top 10)', 'color: #3b82f6; font-size: 14px; font-weight: bold');
+    const recentHistory = searchHistory.slice(0, 10).map((item: any) => ({
+      '查询': item.query,
+      '选择': item.selectedId,
+      '类型': item.type,
+      '时间': new Date(item.timestamp).toLocaleString('zh-CN'),
+    }));
+    console.table(recentHistory);
+  }
+
+  // 5. 搜索模式分析
+  console.log('\n%c🔹 搜索模式分析', 'color: #3b82f6; font-size: 14px; font-weight: bold');
+  
+  // 统计不同类型的选择
+  const pluginSelections = userPreferences.filter((p: any) => p.id.startsWith('plugin-'));
+  const appSelections = userPreferences.filter((p: any) => p.id.startsWith('app-'));
+  
+  console.table({
+    '插件选择数': pluginSelections.length,
+    '应用选择数': appSelections.length,
+    '插件占比': userPreferences.length > 0 
+      ? `${Math.round(pluginSelections.length / userPreferences.length * 100)}%` 
+      : '0%',
+    '应用占比': userPreferences.length > 0 
+      ? `${Math.round(appSelections.length / userPreferences.length * 100)}%` 
+      : '0%',
+  });
+
+  // 6. 高频查询词
+  if (searchHistory.length > 0) {
+    console.log('\n%c🔹 高频查询词', 'color: #3b82f6; font-size: 14px; font-weight: bold');
+    const queryFrequency = new Map<string, number>();
+    searchHistory.forEach((item: any) => {
+      const count = queryFrequency.get(item.query) || 0;
+      queryFrequency.set(item.query, count + 1);
+    });
+    
+    const sortedQueries = Array.from(queryFrequency.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([query, count], idx) => ({
+        '排名': idx + 1,
+        '查询词': query,
+        '使用次数': count,
+      }));
+    
+    console.table(sortedQueries);
+  }
+
+  // 7. 活跃时间段分析
+  if (searchHistory.length > 0) {
+    console.log('\n%c🔹 活跃时间段', 'color: #3b82f6; font-size: 14px; font-weight: bold');
+    const hourDistribution = new Array(24).fill(0);
+    searchHistory.forEach((item: any) => {
+      const hour = new Date(item.timestamp).getHours();
+      hourDistribution[hour]++;
+    });
+    
+    const peakHours = hourDistribution
+      .map((count, hour) => ({ hour, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+    
+    console.log('高峰时段:', peakHours.map(h => `${h.hour}:00-${h.hour+1}:00 (${h.count}次)`).join(', '));
+  }
+
+  // 8. 原始数据（折叠）
+  console.log('\n%c🔹 原始数据 (展开查看)', 'color: #3b82f6; font-size: 14px; font-weight: bold');
+  console.group('localStorage 数据');
+  console.log('搜索历史:', searchHistory);
+  console.log('用户偏好:', userPreferences);
+  console.log('应用设置:', appSettings);
+  console.log('固定插件:', pinnedPlugins);
+  console.groupEnd();
+
+  console.log('\n%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n', 'color: #8b5cf6; font-weight: bold');
+  console.log('%c💡 提示: 可以右键表格复制数据，或使用 console.clear() 清空控制台', 'color: #6b7280; font-style: italic');
+}
+
 const debugOptions: Array<{
   key: string;
   label: string;
@@ -810,6 +942,25 @@ function DebugTab({ debugSettings, onToggleDebug, isDebugOpen, onTogglePanel }: 
               {debugSettings ? Object.values(debugSettings).filter(Boolean).length : 0} / {debugOptions.length}
             </span>
           </div>
+        </div>
+      </div>
+
+      {/* 用户行为统计导出 */}
+      <div className="ios-settings-group">
+        <div className="px-4 py-3 border-b border-white/10">
+          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">数据导出</h3>
+        </div>
+        <div className="p-4">
+          <button
+            onClick={exportUserBehaviorSummary}
+            className="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg font-medium text-sm transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl"
+          >
+            <span className="text-lg">📊</span>
+            <span>导出使用习惯概要到控制台</span>
+          </button>
+          <p className="text-xs text-gray-500 mt-2 text-center">
+            在浏览器控制台中查看详细的使用统计和分析
+          </p>
         </div>
       </div>
     </div>

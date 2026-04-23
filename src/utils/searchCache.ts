@@ -1,6 +1,7 @@
 import { SearchResult, PluginResult, ApplicationResult } from '../types/searchResult';
 import { getPinyinInitials, getPinyinFull } from './pinyinSearch';
 import { debugLog, debugTimer } from './debugLogger';
+import { userBehaviorTracker } from './userBehavior';
 
 /**
  * 搜索索引项
@@ -114,12 +115,20 @@ export class SearchCache {
     const results: Array<{ result: SearchResult; score: number; pinned?: boolean }> = [];
     const pinnedItems: Array<{ result: SearchResult; score: number; pinned?: boolean }> = [];
 
+    // 获取用户行为相关的结果ID
+    const relatedHistoryIds = userBehaviorTracker.getRelatedHistory(query);
+    const frequentIds = userBehaviorTracker.getFrequentResults(20);
+
     for (const item of this.index.values()) {
-      const score = this.calculateMatchScore(item, queryLower);
+      const baseScore = this.calculateMatchScore(item, queryLower);
       
       // 有匹配分数的项目加入搜索结果
-      if (score > 0) {
-        results.push({ result: item.result, score, pinned: item.pinned });
+      if (baseScore > 0) {
+        // 计算用户行为加分
+        const behaviorBonus = this.calculateBehaviorBonus(item.id, query, relatedHistoryIds, frequentIds);
+        const finalScore = baseScore + behaviorBonus;
+        
+        results.push({ result: item.result, score: finalScore, pinned: item.pinned });
       } else if (item.pinned) {
         // 没有匹配但固定的插件，放入待显示列表
         pinnedItems.push({ result: item.result, score: 0, pinned: true });
@@ -133,6 +142,45 @@ export class SearchCache {
     const finalResults = [...results, ...pinnedItems];
 
     return finalResults.map(r => r.result);
+  }
+
+  /**
+   * 计算用户行为加分
+   */
+  private calculateBehaviorBonus(
+    itemId: string,
+    _query: string,
+    relatedHistoryIds: string[],
+    frequentIds: string[]
+  ): number {
+    let bonus = 0;
+
+    // 1. 历史相关加分（最高30分）
+    const historyIndex = relatedHistoryIds.indexOf(itemId);
+    if (historyIndex !== -1) {
+      // 排名越靠前，加分越多
+      const historyBonus = Math.max(0, 30 - historyIndex * 3);
+      bonus += historyBonus;
+      debugLog('cacheStats', `History bonus for ${itemId}: +${historyBonus}`);
+    }
+
+    // 2. 常用结果加分（最高20分）
+    const frequentIndex = frequentIds.indexOf(itemId);
+    if (frequentIndex !== -1) {
+      const frequentBonus = Math.max(0, 20 - frequentIndex * 2);
+      bonus += frequentBonus;
+      debugLog('cacheStats', `Frequent bonus for ${itemId}: +${frequentBonus}`);
+    }
+
+    // 3. 偏好分数加成（最高15分）
+    const preferenceScore = userBehaviorTracker.getPreferenceScore(itemId);
+    if (preferenceScore > 0) {
+      const preferenceBonus = Math.round(preferenceScore * 0.15); // 0-100 -> 0-15
+      bonus += preferenceBonus;
+      debugLog('cacheStats', `Preference bonus for ${itemId}: +${preferenceBonus}`);
+    }
+
+    return bonus;
   }
 
   /**
@@ -358,6 +406,14 @@ export class SearchCache {
   clear() {
     this.index.clear();
     this.searchCache.clear();
+  }
+
+  /**
+   * 清除所有搜索缓存（当用户行为变化时调用）
+   */
+  clearSearchCache() {
+    this.searchCache.clear();
+    debugLog('cacheStats', 'Search cache cleared due to user behavior change');
   }
 
   /**

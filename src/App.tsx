@@ -10,6 +10,7 @@ import { SearchResult } from "./types/searchResult";
 import { searchCache } from "./utils/searchCache";
 import { useDebug } from "./context/DebugContext";
 import { initDebug, debugTimer } from "./utils/debugLogger";
+import { userBehaviorTracker } from "./utils/userBehavior";
 
 function App() {
   const [query, setQuery] = useState("");
@@ -265,6 +266,19 @@ function App() {
     };
   }, [plugins, applications]);
 
+  // ✅ 监听用户行为变化，清除搜索缓存
+  useEffect(() => {
+    const handleBehaviorChanged = () => {
+      console.log('[App] User behavior changed, clearing search cache...');
+      searchCache.clearSearchCache();
+    };
+
+    window.addEventListener('user-behavior-changed', handleBehaviorChanged);
+    return () => {
+      window.removeEventListener('user-behavior-changed', handleBehaviorChanged);
+    };
+  }, []);
+
   // 使用缓存搜索（极速）
   const searchResults = useMemo(() => {
     // 如果索引未就绪，返回空数组
@@ -301,8 +315,10 @@ function App() {
           break;
         case 'Enter':
           if (searchResults[selectedIndex]) {
-            // 直接在这里执行，避免循环依赖
             const result = searchResults[selectedIndex];
+            
+            // ✅ 记录用户选择行为
+            userBehaviorTracker.recordSelection(query, result.id, result.type as 'plugin' | 'app');
             
             if (result.type === 'plugin') {
               // 查找插件元数据以获取正确的入口文件
@@ -371,6 +387,9 @@ function App() {
 
   const handleExecute = async (result: SearchResult) => {
     console.log('[Main Window] Executing result:', result);
+
+    // ✅ 记录用户选择行为
+    userBehaviorTracker.recordSelection(query, result.id, result.type as 'plugin' | 'app');
 
     if (result.type === 'plugin') {
       // 执行插件

@@ -1,4 +1,6 @@
 import { useDebug } from '../context/DebugContext';
+import { userBehaviorTracker } from '../utils/userBehavior';
+import { searchCache } from '../utils/searchCache';
 
 const debugOptions: Array<{
   key: keyof import('../context/DebugContext').DebugSettings;
@@ -49,7 +51,7 @@ export function DebugPanel() {
           >
             <input
               type="checkbox"
-              checked={settings[option.key]}
+              checked={settings?.[option.key]}
               onChange={() => toggleDebug(option.key)}
               className="mt-1 w-4 h-4 rounded border-gray-600 bg-gray-800 text-purple-600 focus:ring-purple-500 focus:ring-offset-0"
             />
@@ -70,7 +72,57 @@ export function DebugPanel() {
         <div className="text-xs text-gray-400">
           已启用: {settings ? Object.values(settings).filter(Boolean).length : 0} / {debugOptions.length}
         </div>
+        
+        {/* 用户行为统计 */}
+        <div className="mt-3 pt-3 border-t border-gray-700">
+          <div className="text-xs font-medium text-purple-400 mb-2">📊 用户行为统计</div>
+          <UserBehaviorStats />
+        </div>
       </div>
+    </div>
+  );
+}
+
+// 用户行为统计组件
+function UserBehaviorStats() {
+  const stats = userBehaviorTracker.getStats();
+  const cacheStats = searchCache.getStats();
+
+  return (
+    <div className="space-y-2 text-xs">
+      <div className="flex justify-between">
+        <span className="text-gray-400">历史记录:</span>
+        <span className="text-white">{stats.historySize}</span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-gray-400">偏好数量:</span>
+        <span className="text-white">{stats.preferencesCount}</span>
+      </div>
+      <div className="flex justify-between">
+        <span className="text-gray-400">缓存查询:</span>
+        <span className="text-white">{cacheStats.cachedQueries}</span>
+      </div>
+      
+      {stats.topPreferences.length > 0 && (
+        <div className="pt-2 border-t border-gray-700">
+          <div className="text-xs text-gray-500 mb-1">Top 偏好:</div>
+          {stats.topPreferences.map((pref, idx) => (
+            <div key={pref.id} className="flex justify-between py-0.5">
+              <span className="text-gray-400 truncate max-w-[150px]">
+                {idx + 1}. {pref.id}
+              </span>
+              <span className="text-green-400">{pref.score}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      
+      <button
+        onClick={() => userBehaviorTracker.clearHistory()}
+        className="w-full mt-2 px-2 py-1 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded text-xs transition-colors"
+      >
+        清除历史
+      </button>
     </div>
   );
 }
