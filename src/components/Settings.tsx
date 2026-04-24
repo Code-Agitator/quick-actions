@@ -1,6 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { Card, Button, Chip, Tooltip } from '@heroui/react';
+import { 
+  Card, 
+  Button, 
+  Chip, 
+  Tooltip,
+  Switch,
+  Separator,
+  Select,
+  Label,
+  ListBox
+} from '@heroui/react';
 import { IoSettingsOutline, IoCubeOutline, IoColorPaletteOutline, IoPowerOutline, IoInformationCircleOutline, IoClose, IoTrashOutline, IoBugOutline } from 'react-icons/io5';
 import { Pin, PinOff } from 'lucide-react';
 import { usePlugins } from '../hooks/usePlugins';
@@ -151,9 +161,10 @@ interface NavItemProps {
 
 function NavItem({ active, onClick, icon, label }: NavItemProps) {
   return (
-    <button
-      onClick={onClick}
-      className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md transition-all duration-150 text-sm ${
+    <Button
+      variant={active ? "primary" : "ghost"}
+      onPress={onClick}
+      className={`w-full justify-start gap-2.5 px-2.5 py-1.5 h-auto min-h-[36px] rounded-md transition-all duration-150 text-sm ${
         active
           ? 'bg-blue-500/20 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 font-medium'
           : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/[0.06]'
@@ -161,7 +172,7 @@ function NavItem({ active, onClick, icon, label }: NavItemProps) {
     >
       {icon}
       <span>{label}</span>
-    </button>
+    </Button>
   );
 }
 
@@ -384,33 +395,37 @@ function GeneralTab({
               <p className="font-medium text-gray-900 dark:text-gray-100 text-sm tracking-tight">开机自启</p>
               <p className="text-xs text-gray-600 dark:text-gray-400/70 mt-0.5">系统启动时自动运行 Quick Actions</p>
             </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={autoStart}
-                onChange={(e) => onAutoStartChange(e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-            </label>
+            <Switch
+              isSelected={autoStart}
+              onChange={() => onAutoStartChange(!autoStart)}
+            >
+              <Switch.Control>
+                <Switch.Thumb />
+              </Switch.Control>
+              <Switch.Content>
+                <Label className="sr-only">开机自启</Label>
+              </Switch.Content>
+            </Switch>
           </div>
 
-          <hr className="border-gray-200/50 dark:border-white/10" />
+          <Separator className="my-3" />
 
           <div className="flex items-center justify-between">
             <div>
               <p className="font-medium text-gray-900 dark:text-gray-100 text-sm tracking-tight">显示托盘图标</p>
               <p className="text-xs text-gray-600 dark:text-gray-400/70 mt-0.5">在系统托盘中显示应用图标</p>
             </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={showTrayIcon}
-                onChange={(e) => onShowTrayIconChange(e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-            </label>
+            <Switch
+              isSelected={showTrayIcon}
+              onChange={() => onShowTrayIconChange(!showTrayIcon)}
+            >
+              <Switch.Control>
+                <Switch.Thumb />
+              </Switch.Control>
+              <Switch.Content>
+                <Label className="sr-only">显示托盘图标</Label>
+              </Switch.Content>
+            </Switch>
           </div>
         </div>
       </SettingsCard>
@@ -419,75 +434,117 @@ function GeneralTab({
         <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 tracking-tight">快捷键设置</h3>
         
         <div className="space-y-3">
-          <div>
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+          <Select 
+            selectedKey={globalShortcut}
+            onChange={(key) => {
+              if (key) {
+                onGlobalShortcutChange(String(key));
+              }
+            }}
+            isDisabled={checkingShortcut}
+            placeholder="选择快捷键"
+            className={`max-w-xs ${
+              shortcutAvailable === false ? 'border-yellow-400 dark:border-yellow-500/60' : ''
+            }`}
+            variant="secondary"
+          >
+            <Label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
               呼出窗口快捷键
-            </label>
-            <div className="flex items-center gap-2">
-              <select
-                value={globalShortcut}
-                onChange={(e) => onGlobalShortcutChange(e.target.value)}
-                disabled={checkingShortcut}
-                className={`w-full max-w-xs px-2.5 py-1.5 border rounded-md bg-white dark:bg-gray-700/60 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 outline-none transition-all duration-150 backdrop-blur-sm ${
-                  checkingShortcut 
-                    ? 'border-gray-300/50 dark:border-white/10 opacity-60 cursor-not-allowed'
-                    : shortcutAvailable === false
-                    ? 'border-yellow-400 dark:border-yellow-500/60'
-                    : 'border-gray-300/50 dark:border-white/10'
-                }`}
-              >
-                <option value="Ctrl+Space">Ctrl + Space</option>
-                <option value="Alt+Space">Alt + Space</option>
-                <option value="Ctrl+Shift+Space">Ctrl + Shift + Space</option>
-                <option value="Alt+Shift+Space">Alt + Shift + Space</option>
-                <option value="Ctrl+`">Ctrl + `</option>
-                <option value="Alt+`">Alt + `</option>
-              </select>
-              
-              {/* 状态指示器 - 仅在检查中或冲突时显示 */}
-              {checkingShortcut && (
-                <div className="flex-shrink-0 w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-              )}
-              {!checkingShortcut && shortcutAvailable === false && (
-                <div className="flex-shrink-0 flex items-center gap-1 text-yellow-600 dark:text-yellow-400">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                </div>
-              )}
+            </Label>
+            <Select.Trigger>
+              <Select.Value />
+              <Select.Indicator />
+            </Select.Trigger>
+            <Select.Popover>
+              <ListBox>
+                <ListBox.Item id="Ctrl+Space" textValue="Ctrl + Space">
+                  Ctrl + Space
+                  <ListBox.ItemIndicator />
+                </ListBox.Item>
+                <ListBox.Item id="Alt+Space" textValue="Alt + Space">
+                  Alt + Space
+                  <ListBox.ItemIndicator />
+                </ListBox.Item>
+                <ListBox.Item id="Ctrl+Shift+Space" textValue="Ctrl + Shift + Space">
+                  Ctrl + Shift + Space
+                  <ListBox.ItemIndicator />
+                </ListBox.Item>
+                <ListBox.Item id="Alt+Shift+Space" textValue="Alt + Shift + Space">
+                  Alt + Shift + Space
+                  <ListBox.ItemIndicator />
+                </ListBox.Item>
+                <ListBox.Item id="Ctrl+`" textValue="Ctrl + `">
+                  Ctrl + `
+                  <ListBox.ItemIndicator />
+                </ListBox.Item>
+                <ListBox.Item id="Alt+`" textValue="Alt + `">
+                  Alt + `
+                  <ListBox.ItemIndicator />
+                </ListBox.Item>
+              </ListBox>
+            </Select.Popover>
+          </Select>
+          
+          {/* 状态指示器 - 仅在检查中或冲突时显示 */}
+          {checkingShortcut && (
+            <div className="flex-shrink-0 w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+          )}
+          {!checkingShortcut && shortcutAvailable === false && (
+            <div className="flex-shrink-0 flex items-center gap-1 text-yellow-600 dark:text-yellow-400">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
             </div>
-            
-            {/* 状态提示文字 - 仅在冲突时显示 */}
-            {checkingShortcut && (
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
-                ⏳ 正在检查快捷键可用性...
-              </p>
-            )}
-            {!checkingShortcut && shortcutAvailable === false && (
-              <p className="text-xs text-yellow-600 dark:text-yellow-400/80 mt-1.5">
-                ⚠️ 此快捷键可能已被其他应用占用
-              </p>
-            )}
-          </div>
+          )}
+          
+          {/* 状态提示文字 - 仅在冲突时显示 */}
+          {checkingShortcut && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
+              ⏳ 正在检查快捷键可用性...
+            </p>
+          )}
+          {!checkingShortcut && shortcutAvailable === false && (
+            <p className="text-xs text-yellow-600 dark:text-yellow-400/80 mt-1.5">
+              ⚠️ 此快捷键可能已被其他应用占用
+            </p>
+          )}
         </div>
       </SettingsCard>
 
       <SettingsCard className="p-4.5">
         <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 tracking-tight">语言与区域</h3>
         
-        <div>
-          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+        <Select 
+          selectedKey={language}
+          onChange={(key) => {
+            if (key) {
+              onLanguageChange(String(key));
+            }
+          }}
+          placeholder="选择语言"
+          className="max-w-xs"
+          variant="secondary"
+        >
+          <Label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
             界面语言
-          </label>
-          <select
-            value={language}
-            onChange={(e) => onLanguageChange(e.target.value)}
-            className="w-full max-w-xs px-2.5 py-1.5 border border-gray-300/50 dark:border-white/10 rounded-md bg-white dark:bg-gray-700/60 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 outline-none transition-all duration-150 backdrop-blur-sm"
-          >
-            <option value="zh-CN">简体中文</option>
-            <option value="en-US">English</option>
-          </select>
-        </div>
+          </Label>
+          <Select.Trigger>
+            <Select.Value />
+            <Select.Indicator />
+          </Select.Trigger>
+          <Select.Popover>
+            <ListBox>
+              <ListBox.Item id="zh-CN" textValue="简体中文">
+                简体中文
+                <ListBox.ItemIndicator />
+              </ListBox.Item>
+              <ListBox.Item id="en-US" textValue="English">
+                English
+                <ListBox.ItemIndicator />
+              </ListBox.Item>
+            </ListBox>
+          </Select.Popover>
+        </Select>
       </SettingsCard>
 
       <SettingsCard className="p-4.5">
@@ -498,15 +555,17 @@ function GeneralTab({
             <p className="font-medium text-gray-900 dark:text-gray-100 text-sm tracking-tight">启用动画</p>
             <p className="text-xs text-gray-600 dark:text-gray-400/70 mt-0.5">开启界面过渡动画效果</p>
           </div>
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={enableAnimations}
-              onChange={(e) => onEnableAnimationsChange(e.target.checked)}
-              className="sr-only peer"
-            />
-            <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-          </label>
+          <Switch
+            isSelected={enableAnimations}
+            onChange={() => onEnableAnimationsChange(!enableAnimations)}
+          >
+            <Switch.Control>
+              <Switch.Thumb />
+            </Switch.Control>
+            <Switch.Content>
+              <Label className="sr-only">启用动画</Label>
+            </Switch.Content>
+          </Switch>
         </div>
       </SettingsCard>
     </div>
@@ -553,22 +612,23 @@ function AboutTab({ onReset }: { onReset?: () => void }) {
           </div>
         </div>
 
-        <hr className="my-3 border-gray-200/50 dark:border-white/10" />
+        <Separator className="my-3" />
 
         {/* Reset Settings Button */}
-        <button
-          onClick={() => {
+        <Button
+          onPress={() => {
             if (window.confirm('确定要重置所有设置为默认值吗？')) {
               onReset?.();
             }
           }}
-          className="w-full flex items-center justify-center gap-2 p-2.5 rounded-md bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-all duration-150 font-medium text-sm"
+          variant="ghost"
+          className="w-full gap-2 p-2.5 rounded-md font-medium text-sm text-red-600 dark:text-red-400 hover:bg-red-500/10 dark:hover:bg-red-500/20"
         >
           <IoPowerOutline className="text-base" />
           <span>重置所有设置</span>
-        </button>
+        </Button>
 
-        <hr className="my-3 border-gray-200/50 dark:border-white/10" />
+        <Separator className="my-3" />
 
         <div className="text-center text-xs text-gray-500 dark:text-gray-400/60 font-medium">
           <p>© 2024 Quick Actions. All rights reserved.</p>
@@ -749,8 +809,9 @@ function DebugTab({ debugSettings, onToggleDebug, isDebugOpen, onTogglePanel }: 
               <p className="text-xs text-gray-400/70 mt-0.5">显示实时调试信息</p>
             </div>
           </div>
-          <button
-            onClick={onTogglePanel}
+          <Button
+            onPress={onTogglePanel}
+            variant={isDebugOpen ? "primary" : "ghost"}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
               isDebugOpen
                 ? 'bg-purple-600 text-white hover:bg-purple-700'
@@ -758,7 +819,7 @@ function DebugTab({ debugSettings, onToggleDebug, isDebugOpen, onTogglePanel }: 
             }`}
           >
             {isDebugOpen ? '已开启' : '开启'}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -769,29 +830,26 @@ function DebugTab({ debugSettings, onToggleDebug, isDebugOpen, onTogglePanel }: 
         </div>
         <div className="divide-y divide-white/10">
           {debugOptions.map(option => (
-            <label
+            <div
               key={option.key}
-              className="flex items-center justify-between p-4 cursor-pointer hover:bg-white/[0.03] transition-colors"
+              className="flex items-center justify-between p-4 hover:bg-white/[0.03] transition-colors"
             >
               <div className="flex-1 pr-4">
                 <p className="font-medium text-gray-100 text-sm">{option.label}</p>
                 <p className="text-xs text-gray-400/70 mt-0.5">{option.description}</p>
               </div>
-              <input
-                type="checkbox"
-                checked={debugSettings[option.key as keyof typeof debugSettings] || false}
+              <Switch
+                isSelected={debugSettings[option.key as keyof typeof debugSettings] || false}
                 onChange={() => onToggleDebug(option.key as keyof import('../context/DebugContext').DebugSettings)}
-                className="w-11 h-6 rounded-full bg-gray-600 border-2 border-transparent appearance-none cursor-pointer transition-colors duration-200 checked:bg-purple-600 checked:border-purple-600 relative"
-                style={{
-                  backgroundImage: debugSettings[option.key as keyof typeof debugSettings]
-                    ? 'url("data:image/svg+xml,%3csvg viewBox=\'0 0 16 16\' fill=\'white\' xmlns=\'http://www.w3.org/2000/svg\'%3e%3cpath d=\'M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z\'/%3e%3c/svg%3e")'
-                    : 'none',
-                  backgroundPosition: 'center',
-                  backgroundSize: '12px',
-                  backgroundRepeat: 'no-repeat',
-                }}
-              />
-            </label>
+              >
+                <Switch.Control>
+                  <Switch.Thumb />
+                </Switch.Control>
+                <Switch.Content>
+                  <Label className="sr-only">{option.label}</Label>
+                </Switch.Content>
+              </Switch>
+            </div>
           ))}
         </div>
       </div>
@@ -814,13 +872,14 @@ function DebugTab({ debugSettings, onToggleDebug, isDebugOpen, onTogglePanel }: 
           <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">数据导出</h3>
         </div>
         <div className="p-4">
-          <button
-            onClick={exportUserBehaviorSummary}
+          <Button
+            onPress={exportUserBehaviorSummary}
+            variant="ghost"
             className="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg font-medium text-sm transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl"
           >
             <span className="text-lg">📊</span>
             <span>导出使用习惯概要到控制台</span>
-          </button>
+          </Button>
           <p className="text-xs text-gray-500 mt-2 text-center">
             在浏览器控制台中查看详细的使用统计和分析
           </p>

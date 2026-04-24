@@ -136,7 +136,7 @@ export function SearchResultList({
               }`}
             >
               <div className={`flex items-center ${isCompact ? 'gap-2 py-1.5 px-3' : 'gap-3 py-2.5 px-3'}`}>
-                {/* 图标 - 使用 HeroUI Avatar */}
+                {/* 图标 */}
                 <div className={`${isCompact ? 'w-8 h-8' : 'w-10 h-10'} flex-shrink-0 rounded-md bg-gradient-to-br from-gray-200/70 to-gray-300/50 dark:from-gray-700/70 dark:to-gray-800/50 backdrop-blur-sm border border-gray-300/50 dark:border-white/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_2px_4px_rgba(0,0,0,0.1)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_2px_4px_rgba(0,0,0,0.3)] overflow-hidden`}>
                   {hasRealIcon ? (
                     <img 
