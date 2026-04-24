@@ -457,13 +457,19 @@ function App() {
             </div>
 
             {/* 分隔线 - 仅在展开时显示 */}
-            {isExpanded && (
-              <div className="mx-4 h-px bg-white/10" />
-            )}
+            <div 
+              className={`mx-4 h-px bg-white/10 transition-all duration-200 ease-out ${
+                isExpanded ? 'opacity-100 my-2' : 'opacity-0 my-0'
+              }`}
+            />
 
-            {/* 内容区域 - 仅在展开时显示 */}
-            {isExpanded && (
-              <div className="flex-1 overflow-y-auto scrollbar-thin py-1">
+            {/* 内容区域 - 使用 flex 实现流畅的展开/收缩动画 */}
+            <div 
+              className={`flex flex-col transition-all duration-200 ease-out ${
+                isExpanded ? 'flex-1 opacity-100 min-h-0' : 'flex-none h-0 opacity-0'
+              }`}
+            >
+              <div className="flex-1 overflow-y-auto scrollbar-thin py-1 min-h-0">
                 {/* 搜索结果列表 - 使用优化后的组件 */}
                 <SearchResultListMemo 
                   results={searchResults} 
@@ -472,7 +478,7 @@ function App() {
                   onSelectIndex={setSelectedIndex}
                 />
               </div>
-            )}
+            </div>
           </div>
         </>
       )}

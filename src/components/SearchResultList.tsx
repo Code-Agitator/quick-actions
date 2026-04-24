@@ -18,7 +18,7 @@ export function SearchResultList({
   onSelectIndex 
 }: SearchResultListProps) {
   const { settings } = useAppSettings();
-  const listRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   
   // ✅ 跟踪是否允许鼠标悬停选择
   // 初始为 false，防止窗口打开时鼠标停留在某个选项上立即选中
@@ -27,12 +27,18 @@ export function SearchResultList({
   // 根据布局密度设置样式
   const isCompact = settings.layoutDensity === 'compact';
 
-  // 滚动到选中项
+  // 滚动到选中项 - 使用标准的桌面应用行为
   useEffect(() => {
-    if (selectedIndex >= 0 && listRef.current) {
-      const selectedElement = listRef.current.children[selectedIndex] as HTMLElement;
+    if (selectedIndex >= 0 && containerRef.current) {
+      // ✅ 通过 data-index 属性查找选中项
+      const selectedElement = containerRef.current.querySelector(`[data-index="${selectedIndex}"]`) as HTMLElement;
       if (selectedElement) {
-        selectedElement.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+        // ✅ 使用 scrollIntoView with block: 'nearest'
+        // 这是桌面应用的标准行为：只在必要时滚动，保持最小位移
+        selectedElement.scrollIntoView({ 
+          block: 'nearest', 
+          behavior: 'auto' 
+        });
       }
     }
   }, [selectedIndex]);
@@ -82,7 +88,7 @@ export function SearchResultList({
 
   return (
     <div 
-      ref={listRef} 
+      ref={containerRef}
       className="space-y-0.5 px-2"
       onMouseMove={handleMouseMove}
     >
@@ -119,6 +125,8 @@ export function SearchResultList({
               key={result.id}
               id={result.id}
               textValue={result.title}
+              // ✅ 添加 data-index 属性用于查找
+              data-index={index}
               onPress={() => onExecute(result)}
               onMouseEnter={() => handleMouseEnter(index)}
               className={`group cursor-pointer transition-all duration-150 ${
