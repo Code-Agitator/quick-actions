@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import { PluginApp } from "./PluginApp";
 import { DebugProvider } from "./context/DebugContext";
+import ThemeProvider from "./components/providers/ThemeProvider";
 import "./index.css";
 
 // 检测是否为插件窗口
@@ -29,10 +30,14 @@ const isPluginWindow = (() => {
 // 开发环境下禁用 StrictMode
 const StrictModeWrapper = import.meta.env.DEV ? React.Fragment : React.StrictMode;
 
+// HeroUI v3 不需要 HeroUIProvider，直接使用 ThemeProvider 即可
+// 参考: https://lobehub.com/zh/skills/heroui-inc-heroui-heroui-react
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <StrictModeWrapper>
     <DebugProvider>
-      {isPluginWindow ? <PluginApp /> : <App />}
+      <ThemeProvider>
+        {isPluginWindow ? <PluginApp /> : <App />}
+      </ThemeProvider>
     </DebugProvider>
   </StrictModeWrapper>,
 );

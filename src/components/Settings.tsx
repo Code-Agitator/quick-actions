@@ -8,6 +8,7 @@ import { useDebug } from '../context/DebugContext';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { userBehaviorTracker } from '../utils/userBehavior';
 import { searchCache } from '../utils/searchCache';
+import AppearanceSetting from './settings/AppearanceSetting';
 
 interface SettingsProps {
   onClose: () => void;
@@ -98,14 +99,7 @@ export function Settings({ onClose, onTogglePin }: SettingsProps) {
           <div className="px-6 py-4">
             {activeTab === 'plugins' && <PluginsTab plugins={plugins} loading={loading} onUninstall={uninstallPlugin} onTogglePin={onTogglePin} />}
             {activeTab === 'appearance' && (
-              <AppearanceTab
-                theme={settings.theme}
-                onThemeChange={(value) => updateSetting('theme', value as 'system' | 'light' | 'dark')}
-                windowOpacity={settings.windowOpacity}
-                onWindowOpacityChange={(value) => updateSetting('windowOpacity', value)}
-                layoutDensity={settings.layoutDensity}
-                onLayoutDensityChange={(value) => updateSetting('layoutDensity', value)}
-              />
+              <AppearanceSetting />
             )}
             {activeTab === 'general' && (
               <GeneralTab
@@ -305,170 +299,6 @@ function PluginsTab({ plugins, loading, onUninstall, onTogglePin }: PluginsTabPr
           })}
         </div>
       )}
-    </div>
-  );
-}
-
-// 外观设置标签页
-interface AppearanceTabProps {
-  theme: string;
-  onThemeChange: (theme: string) => void;
-  windowOpacity: number;
-  onWindowOpacityChange: (value: number) => void;
-  layoutDensity: 'compact' | 'comfortable';
-  onLayoutDensityChange: (density: 'compact' | 'comfortable') => void;
-}
-
-function AppearanceTab({ 
-  theme, 
-  onThemeChange, 
-  windowOpacity, 
-  onWindowOpacityChange,
-  layoutDensity,
-  onLayoutDensityChange 
-}: AppearanceTabProps) {
-  return (
-    <div className="space-y-4">
-      <SettingsCard className="p-4.5">
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 tracking-tight">主题设置</h3>
-        
-        <div className="space-y-3">
-          <div>
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-              主题模式
-            </label>
-            <select
-              value={theme}
-              onChange={(e) => onThemeChange(e.target.value)}
-              className="w-full max-w-xs px-2.5 py-1.5 border border-gray-300/50 dark:border-white/10 rounded-md bg-white dark:bg-gray-700/60 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 outline-none transition-all duration-150 backdrop-blur-sm"
-            >
-              <option value="system">跟随系统</option>
-              <option value="light">浅色模式</option>
-              <option value="dark">深色模式</option>
-            </select>
-          </div>
-
-          <hr className="border-gray-200 dark:border-gray-700" />
-
-          <div className="grid grid-cols-3 gap-3">
-            <button
-              onClick={() => onThemeChange('light')}
-              className={`text-center p-3 rounded-md border-2 transition-all duration-200 ${
-                theme === 'light'
-                  ? 'border-blue-500/60 bg-blue-50/60 dark:bg-blue-900/15 shadow-sm'
-                  : 'border-gray-200/60 dark:border-gray-700/50 hover:border-gray-300/70 hover:shadow-sm'
-              }`}
-            >
-              <div className="w-full h-12 bg-gradient-to-br from-white/90 to-gray-100/80 rounded-md mb-1.5 shadow-inner border border-gray-200/50"></div>
-              <p className="text-xs font-medium text-gray-700 dark:text-gray-300">浅色</p>
-            </button>
-            <button
-              onClick={() => onThemeChange('dark')}
-              className={`text-center p-3 rounded-md border-2 transition-all duration-200 ${
-                theme === 'dark'
-                  ? 'border-blue-500/60 bg-blue-50/60 dark:bg-blue-900/15 shadow-sm'
-                  : 'border-gray-200/60 dark:border-gray-700/50 hover:border-gray-300/70 hover:shadow-sm'
-              }`}
-            >
-              <div className="w-full h-12 bg-gradient-to-br from-gray-800/90 to-gray-900/80 rounded-md mb-1.5 shadow-inner border border-gray-700/50"></div>
-              <p className="text-xs font-medium text-gray-700 dark:text-gray-300">深色</p>
-            </button>
-            <button
-              onClick={() => onThemeChange('system')}
-              className={`text-center p-3 rounded-md border-2 transition-all duration-200 ${
-                theme === 'system'
-                  ? 'border-blue-500/60 bg-blue-50/60 dark:bg-blue-900/15 shadow-sm'
-                  : 'border-gray-200/60 dark:border-gray-700/50 hover:border-gray-300/70 hover:shadow-sm'
-              }`}
-            >
-              <div className="w-full h-12 bg-gradient-to-br from-white/70 via-gray-100/60 to-gray-800/70 rounded-md mb-1.5 shadow-inner border border-gray-300/40 dark:border-gray-600/40"></div>
-              <p className="text-xs font-medium text-gray-700 dark:text-gray-300">自动</p>
-            </button>
-          </div>
-        </div>
-      </SettingsCard>
-
-      {/* 窗口透明度设置 */}
-      <SettingsCard className="p-4.5">
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 tracking-tight">窗口外观</h3>
-        
-        <div className="space-y-4">
-          {/* 布局密度设置 */}
-          <div>
-            <label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2 block">
-              搜索结果布局
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => onLayoutDensityChange('compact')}
-                className={`text-center p-2.5 rounded-md border-2 transition-all duration-200 ${
-                  layoutDensity === 'compact'
-                    ? 'border-blue-500/60 bg-blue-50/60 dark:bg-blue-900/15 shadow-sm'
-                    : 'border-gray-200/60 dark:border-gray-700/50 hover:border-gray-300/70 hover:shadow-sm'
-                }`}
-              >
-                <div className="space-y-1 mb-1.5">
-                  <div className="h-1.5 bg-current opacity-30 rounded"></div>
-                  <div className="h-1.5 bg-current opacity-30 rounded w-3/4"></div>
-                  <div className="h-1.5 bg-current opacity-30 rounded w-1/2"></div>
-                </div>
-                <p className="text-xs font-medium text-gray-700 dark:text-gray-300">紧凑</p>
-              </button>
-              <button
-                onClick={() => onLayoutDensityChange('comfortable')}
-                className={`text-center p-2.5 rounded-md border-2 transition-all duration-200 ${
-                  layoutDensity === 'comfortable'
-                    ? 'border-blue-500/60 bg-blue-50/60 dark:bg-blue-900/15 shadow-sm'
-                    : 'border-gray-200/60 dark:border-gray-700/50 hover:border-gray-300/70 hover:shadow-sm'
-                }`}
-              >
-                <div className="space-y-1.5 mb-1.5">
-                  <div className="h-2 bg-current opacity-30 rounded"></div>
-                  <div className="h-2 bg-current opacity-30 rounded w-3/4"></div>
-                  <div className="h-2 bg-current opacity-30 rounded w-1/2"></div>
-                </div>
-                <p className="text-xs font-medium text-gray-700 dark:text-gray-300">宽松</p>
-              </button>
-            </div>
-          </div>
-
-          {/* 窗口透明度 */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                窗口透明度
-              </label>
-              <span className="text-xs font-mono text-gray-600 dark:text-gray-400 bg-black/5 dark:bg-white/10 px-2 py-0.5 rounded-md">
-                {Math.round(windowOpacity * 100)}%
-              </span>
-            </div>
-            
-            <input
-              type="range"
-              min="50"
-              max="100"
-              step="5"
-              value={Math.round(windowOpacity * 100)}
-              onChange={(e) => onWindowOpacityChange(Number(e.target.value) / 100)}
-              className="w-full h-2 bg-gray-200 dark:bg-gray-700/60 rounded-md appearance-none cursor-pointer accent-blue-500 hover:accent-blue-400 transition-all"
-              style={{
-                background: `linear-gradient(to right, rgba(59, 130, 246, 0.6) 0%, rgba(59, 130, 246, 0.6) ${((windowOpacity - 0.5) / 0.5) * 100}%, rgba(156, 163, 175, 0.6) ${((windowOpacity - 0.5) / 0.5) * 100}%, rgba(156, 163, 175, 0.6) 100%)`
-              }}
-            />
-            
-            <div className="flex justify-between mt-1.5 text-[10px] text-gray-500 dark:text-gray-400">
-              <span>透明</span>
-              <span>不透明</span>
-            </div>
-          </div>
-
-          <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-md">
-            <p className="text-xs text-blue-600 dark:text-blue-300/90">
-              💡 提示：调整透明度可以改变窗口的视觉效果，较低的透明度会让背景更加明显。
-            </p>
-          </div>
-        </div>
-      </SettingsCard>
     </div>
   );
 }

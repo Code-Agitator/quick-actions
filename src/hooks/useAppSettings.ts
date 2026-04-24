@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 
 export interface AppSettings {
   autoStart: boolean;
-  theme: 'system' | 'light' | 'dark';
+  theme: 'light' | 'dark'; // 由 next-themes 管理，只支持 light/dark
+  syncWithSystemTheme: boolean; // 是否跟随系统主题
   language: 'zh-CN' | 'en-US';
   showTrayIcon: boolean;
   enableAnimations: boolean;
@@ -13,7 +14,8 @@ export interface AppSettings {
 
 const DEFAULT_SETTINGS: AppSettings = {
   autoStart: false,
-  theme: 'system',
+  theme: 'light',
+  syncWithSystemTheme: false,
   language: 'zh-CN',
   showTrayIcon: true,
   enableAnimations: true,
@@ -49,11 +51,6 @@ export function useAppSettings() {
     }
   }, [settings]);
 
-  // 应用主题设置
-  useEffect(() => {
-    applyTheme(settings.theme);
-  }, [settings.theme]);
-
   // 应用动画设置
   useEffect(() => {
     applyAnimations(settings.enableAnimations);
@@ -66,6 +63,11 @@ export function useAppSettings() {
 
   const updateSetting = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
     setSettings(prev => ({ ...prev, [key]: value }));
+  };
+
+  // 批量更新设置
+  const updateSettings = (updates: Partial<AppSettings>) => {
+    setSettings(prev => ({ ...prev, ...updates }));
   };
 
   const resetSettings = () => {
@@ -113,26 +115,12 @@ export function useAppSettings() {
   return {
     settings,
     updateSetting,
+    updateSettings,
     resetSettings,
     getPinnedPlugins,
     togglePluginPin,
     isPluginPinned,
   };
-}
-
-// 应用主题
-function applyTheme(theme: 'system' | 'light' | 'dark') {
-  const root = document.documentElement;
-  
-  if (theme === 'system') {
-    // 跟随系统主题
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    root.classList.toggle('dark', prefersDark);
-  } else {
-    root.classList.toggle('dark', theme === 'dark');
-  }
-  
-  console.log(`[Theme] Applied theme: ${theme}`);
 }
 
 // 应用动画设置
