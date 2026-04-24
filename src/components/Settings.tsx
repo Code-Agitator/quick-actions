@@ -23,12 +23,7 @@ interface SettingsProps {
 }
 
 // 可复用的设置卡片组件
-interface SettingsCardProps {
-  children: React.ReactNode;
-  className?: string;
-}
-
-function SettingsCard({ children, className = '' }: SettingsCardProps) {
+function SettingsCard({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
     <Card className={`bg-content2 dark:bg-content2/50 border border-divider rounded-medium ${className}`}>
       {children}
@@ -45,9 +40,9 @@ export function Settings({ onClose, onTogglePin }: SettingsProps) {
   return (
     <div className="h-screen w-full flex overflow-hidden">
       {/* 左侧导航栏 */}
-      <div className="w-52 flex-shrink-0 bg-default-50 dark:bg-default-100 border-r border-divider flex flex-col">
+      <aside className="w-52 flex-shrink-0 bg-default-50 dark:bg-default-100 border-r border-divider flex flex-col">
         {/* 头部 */}
-        <div className="p-4 border-b border-divider">
+        <header className="p-4 border-b border-divider">
           <div className="flex items-center justify-between">
             <h1 className="text-small font-semibold">设置</h1>
             <Button
@@ -60,7 +55,7 @@ export function Settings({ onClose, onTogglePin }: SettingsProps) {
               <IoClose className="text-large" />
             </Button>
           </div>
-        </div>
+        </header>
 
         {/* 导航项 */}
         <nav className="flex-1 overflow-y-auto py-2">
@@ -108,10 +103,10 @@ export function Settings({ onClose, onTogglePin }: SettingsProps) {
             )}
           </div>
         </nav>
-      </div>
+      </aside>
 
       {/* 右侧内容区 */}
-      <div className="flex-1 overflow-y-auto bg-content1 dark:bg-content1/50">
+      <main className="flex-1 overflow-y-auto bg-content1 dark:bg-content1/50">
         <div className="p-6">
           {activeTab === 'appearance' && <AppearanceSetting />}
           {activeTab === 'general' && <GeneralSetting />}
@@ -126,7 +121,7 @@ export function Settings({ onClose, onTogglePin }: SettingsProps) {
             />
           )}
         </div>
-      </div>
+      </main>
     </div>
   );
 }
@@ -184,7 +179,7 @@ function PluginsTab({ plugins, loading, onUninstall, onTogglePin }: PluginsTabPr
   }, [getPinnedPlugins]);
 
   return (
-    <div>
+    <>
       {/* 页面标题 */}
       <div className="mb-6">
         <h1 className="text-2xl font-semibold mb-1">插件管理</h1>
@@ -223,11 +218,7 @@ function PluginsTab({ plugins, loading, onUninstall, onTogglePin }: PluginsTabPr
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-xl">{plugin.icon || '🔌'}</span>
                       <h3 className="font-medium text-foreground text-small">{plugin.name}</h3>
-                      <Chip
-                        size="sm"
-                        variant="flat"
-                        className="text-tiny"
-                      >
+                      <Chip size="sm" variant="flat" className="text-tiny">
                         v{plugin.version}
                       </Chip>
                       {isPinned && (
@@ -284,14 +275,14 @@ function PluginsTab({ plugins, loading, onUninstall, onTogglePin }: PluginsTabPr
           })}
         </div>
       )}
-    </div>
+    </>
   );
 }
 
 // 关于标签页
 function AboutTab({ onReset }: { onReset?: () => void }) {
   return (
-    <div>
+    <>
       {/* 页面标题 */}
       <div className="mb-6">
         <h1 className="text-2xl font-semibold mb-1">关于</h1>
@@ -359,7 +350,7 @@ function AboutTab({ onReset }: { onReset?: () => void }) {
           <p>© 2024 Quick Actions. All rights reserved.</p>
         </div>
       </SettingsCard>
-    </div>
+    </>
   );
 }
 
@@ -523,8 +514,8 @@ function DebugTab({ debugSettings, onToggleDebug, isDebugOpen, onTogglePanel }: 
       </div>
 
       {/* Debug Panel Toggle */}
-      <div className="ios-settings-group">
-        <div className="flex items-center justify-between p-4">
+      <Card className="bg-content2 dark:bg-content2/50 border border-divider rounded-medium p-4">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-md bg-purple-500/20 flex items-center justify-center">
               <span className="text-lg">🐛</span>
@@ -545,22 +536,22 @@ function DebugTab({ debugSettings, onToggleDebug, isDebugOpen, onTogglePanel }: 
             {isDebugOpen ? '已开启' : '开启'}
           </Button>
         </div>
-      </div>
+      </Card>
 
       {/* Debug Options */}
-      <div className="ios-settings-group">
-        <div className="px-4 py-3 border-b border-white/10">
-          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">调试选项</h3>
+      <Card className="bg-content2 dark:bg-content2/50 border border-divider rounded-medium">
+        <div className="px-4 py-3 border-b border-divider">
+          <h3 className="text-xs font-semibold text-default-500 uppercase tracking-wide">调试选项</h3>
         </div>
-        <div className="divide-y divide-white/10">
+        <div className="divide-y divide-divider">
           {debugOptions.map(option => (
             <div
               key={option.key}
-              className="flex items-center justify-between p-4 hover:bg-white/[0.03] transition-colors"
+              className="flex items-center justify-between p-4 hover:bg-default-100 transition-colors"
             >
               <div className="flex-1 pr-4">
-                <p className="font-medium text-gray-100 text-sm">{option.label}</p>
-                <p className="text-xs text-gray-400/70 mt-0.5">{option.description}</p>
+                <p className="font-medium text-foreground text-sm">{option.label}</p>
+                <p className="text-xs text-default-500 mt-0.5">{option.description}</p>
               </div>
               <Switch
                 isSelected={debugSettings[option.key as keyof typeof debugSettings] || false}
@@ -569,24 +560,22 @@ function DebugTab({ debugSettings, onToggleDebug, isDebugOpen, onTogglePanel }: 
             </div>
           ))}
         </div>
-      </div>
+      </Card>
 
       {/* Stats */}
-      <div className="ios-settings-group">
-        <div className="px-4 py-3">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-400">已启用调试选项</span>
-            <span className="text-sm font-medium text-purple-400">
-              {debugSettings ? Object.values(debugSettings).filter(Boolean).length : 0} / {debugOptions.length}
-            </span>
-          </div>
+      <Card className="bg-content2 dark:bg-content2/50 border border-divider rounded-medium px-4 py-3">
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-default-500">已启用调试选项</span>
+          <span className="text-sm font-medium text-purple-400">
+            {debugSettings ? Object.values(debugSettings).filter(Boolean).length : 0} / {debugOptions.length}
+          </span>
         </div>
-      </div>
+      </Card>
 
       {/* 用户行为统计导出 */}
-      <div className="ios-settings-group">
-        <div className="px-4 py-3 border-b border-white/10">
-          <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">数据导出</h3>
+      <Card className="bg-content2 dark:bg-content2/50 border border-divider rounded-medium">
+        <div className="px-4 py-3 border-b border-divider">
+          <h3 className="text-xs font-semibold text-default-500 uppercase tracking-wide">数据导出</h3>
         </div>
         <div className="p-4">
           <Button
@@ -601,7 +590,7 @@ function DebugTab({ debugSettings, onToggleDebug, isDebugOpen, onTogglePanel }: 
             在浏览器控制台中查看详细的使用统计和分析
           </p>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

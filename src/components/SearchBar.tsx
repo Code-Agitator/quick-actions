@@ -1,5 +1,5 @@
 import { useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
-import { Input, Button } from '@heroui/react';
+import { Input } from '@heroui/react';
 import { IoSettingsOutline, IoSearchOutline } from 'react-icons/io5';
 
 export interface SearchBarRef {
@@ -47,7 +47,7 @@ export const SearchBar = forwardRef<SearchBarRef, SearchBarProps>(
     }, [onExecute]);
 
     return (
-      <div className="w-full h-full flex items-center">
+      <>
         {/* 搜索框 - 使用 HeroUI v2 Input */}
         <Input
           ref={inputRef as any}
@@ -86,7 +86,7 @@ export const SearchBar = forwardRef<SearchBarRef, SearchBarProps>(
           }
           className="w-full h-full"
         />
-      </div>
+      </>
     );
   }
 );
