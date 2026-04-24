@@ -1,7 +1,8 @@
 import { useState, useEffect, ReactElement, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { Button } from '@heroui/react';
+import { IoClose, IoPin } from 'react-icons/io5';
 import { Plugin } from '../types/plugin';
-import { X, Pin } from 'lucide-react';
 import { createActionsAPI } from '../utils/actionsAPI';
 
 interface PluginUIProps {
@@ -164,32 +165,29 @@ export function PluginUI({ plugin, onClose }: PluginUIProps) {
         </div>
         <div className="flex items-center gap-2">
           {/* 【新特性】置顶按钮 */}
-          <button
-            onClick={handleTogglePin}
-            className={`p-2 rounded-md transition-colors duration-150 group ${
-              isPinned 
-                ? 'bg-blue-500/20 hover:bg-blue-500/30' 
-                : 'hover:bg-black/5 dark:hover:bg-white/10'
-            }`}
+          <Button
+            isIconOnly
+            variant={isPinned ? "solid" : "light"}
+            color={isPinned ? "primary" : undefined}
+            size="sm"
+            onPress={handleTogglePin}
+            className="min-w-8 w-8 h-8"
             style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
             title={isPinned ? '取消置顶' : '置顶窗口'}
           >
-            <Pin 
-              className={`w-5 h-5 transition-colors ${
-                isPinned 
-                  ? 'text-blue-400 fill-blue-400' 
-                  : 'text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-200'
-              }`} 
-            />
-          </button>
+            <IoPin className={`w-5 h-5 ${isPinned ? 'fill-current' : ''}`} />
+          </Button>
           {/* 关闭按钮 */}
-          <button
-            onClick={onClose}
-            className="p-2 rounded-md hover:bg-black/5 dark:hover:bg-white/10 transition-colors duration-150 group"
+          <Button
+            isIconOnly
+            variant="light"
+            size="sm"
+            onPress={onClose}
+            className="min-w-8 w-8 h-8"
             style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
           >
-            <X className="w-5 h-5 text-gray-500 dark:text-gray-400 group-hover:text-red-500 dark:group-hover:text-red-400 transition-colors" />
-          </button>
+            <IoClose className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+          </Button>
         </div>
       </div>
 

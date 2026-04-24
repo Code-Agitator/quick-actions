@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Separator } from '@heroui/react';
+import { Divider } from '@heroui/react';
 import { SearchBar, SearchBarRef } from "./components/SearchBar";
 import { SearchResultListMemo } from "./components/SearchResultList";
 import { Settings } from "./components/Settings";
@@ -458,7 +458,7 @@ function App() {
             </div>
 
             {/* 分隔线 - 仅在展开时显示 */}
-            <Separator 
+            <Divider 
               className={`mx-4 transition-all duration-200 ease-out ${
                 isExpanded ? 'opacity-100 my-2' : 'opacity-0 my-0'
               }`}

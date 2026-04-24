@@ -1,5 +1,6 @@
 import { Plugin } from '../types/plugin';
-import { X, Trash2, Info, Pin, PinOff } from 'lucide-react';
+import { Button } from '@heroui/react';
+import { IoClose, IoTrash, IoInformationCircle, IoPin, IoPinOutline } from 'react-icons/io5';
 
 interface PluginSettingsProps {
   isOpen: boolean;
@@ -26,18 +27,21 @@ export function PluginSettings({ isOpen, onClose, plugin, onUninstall, onToggleP
         <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 dark:border-gray-700">
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl text-white">
-              <Info className="w-5 h-5" />
+              <IoInformationCircle className="w-5 h-5" />
             </div>
             <h2 className="text-xl font-bold text-gray-900 dark:text-white">
               插件信息
             </h2>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          <Button
+            isIconOnly
+            variant="light"
+            size="sm"
+            onPress={onClose}
+            className="min-w-8 w-8 h-8"
           >
-            <X className="w-5 h-5 text-gray-500 dark:text-gray-400" />
-          </button>
+            <IoClose className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+          </Button>
         </div>
 
         {/* 内容 */}
@@ -65,18 +69,19 @@ export function PluginSettings({ isOpen, onClose, plugin, onUninstall, onToggleP
                 <label className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
                   显示设置
                 </label>
-                <button
-                  onClick={() => onTogglePin(plugin.id, !plugin.pinned)}
-                  className={`mt-2 w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all ${
+                <Button
+                  onPress={() => onTogglePin(plugin.id, !plugin.pinned)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 h-auto justify-start ${
                     plugin.pinned
-                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
-                      : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 text-gray-700 dark:text-gray-300'
+                      ? 'border-2 border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                      : 'border-2 border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 text-gray-700 dark:text-gray-300'
                   }`}
+                  variant="bordered"
                 >
                   {plugin.pinned ? (
-                    <Pin className="w-5 h-5" />
+                    <IoPin className="w-5 h-5" />
                   ) : (
-                    <PinOff className="w-5 h-5" />
+                    <IoPinOutline className="w-5 h-5" />
                   )}
                   <div className="flex-1 text-left">
                     <div className="font-semibold">{plugin.pinned ? '已固定' : '未固定'}</div>
@@ -86,7 +91,7 @@ export function PluginSettings({ isOpen, onClose, plugin, onUninstall, onToggleP
                         : '仅在搜索匹配时显示'}
                     </div>
                   </div>
-                </button>
+                </Button>
               </div>
             )}
 
@@ -121,22 +126,24 @@ export function PluginSettings({ isOpen, onClose, plugin, onUninstall, onToggleP
 
         {/* 底部按钮 */}
         <div className="flex gap-3 px-6 py-5 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-100 dark:border-gray-700">
-          <button
-            onClick={() => {
+          <Button
+            onPress={() => {
               onUninstall(plugin.id);
               onClose();
             }}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl font-semibold transition-colors shadow-lg shadow-red-500/30"
+            color="danger"
+            className="flex-1 gap-2"
           >
-            <Trash2 className="w-5 h-5" />
+            <IoTrash className="w-5 h-5" />
             卸载插件
-          </button>
-          <button
-            onClick={onClose}
-            className="flex-1 px-4 py-3 bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-xl font-semibold hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+          </Button>
+          <Button
+            onPress={onClose}
+            variant="bordered"
+            className="flex-1"
           >
             关闭
-          </button>
+          </Button>
         </div>
       </div>
     </div>

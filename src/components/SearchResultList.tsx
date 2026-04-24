@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback, memo } from 'react';
-import { ListBox, Chip, Kbd } from '@heroui/react';
+import { Listbox, ListboxItem, Chip, Kbd } from '@heroui/react';
+import { IoSearchOutline } from 'react-icons/io5';
 import { SearchResult } from '../types/searchResult';
 import { getAppIconConfig } from '../utils/appIcons';
 import { useAppSettings } from '../hooks/useAppSettings';
@@ -64,9 +65,7 @@ export function SearchResultList({
   if (results.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16">
-        <svg className="w-12 h-12 mb-3 text-gray-400 dark:text-gray-500/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-        </svg>
+        <IoSearchOutline className="w-12 h-12 mb-3 text-gray-400 dark:text-gray-500/40" />
         <p className="text-sm font-medium text-gray-600 dark:text-gray-300/70">未找到结果</p>
         <p className="text-xs mt-1 text-gray-400 dark:text-gray-500/50">尝试其他关键词</p>
       </div>
@@ -92,7 +91,7 @@ export function SearchResultList({
       className="space-y-0.5 px-2"
       onMouseMove={handleMouseMove}
     >
-      <ListBox
+      <Listbox
         aria-label="搜索结果"
         selectionMode="single"
         selectedKeys={selectedIndex >= 0 && results[selectedIndex] ? [results[selectedIndex].id] : []}
@@ -121,7 +120,7 @@ export function SearchResultList({
           const iconColor = iconConfig?.color;
           
           return (
-            <ListBox.Item
+            <ListboxItem
               key={result.id}
               id={result.id}
               textValue={result.title}
@@ -168,7 +167,6 @@ export function SearchResultList({
                     </h3>
                     <Chip
                       size="sm"
-                      variant="soft"
                       className="text-[10px] px-1.5 py-0.5 bg-black/5 dark:bg-white/[0.1] text-gray-600 dark:text-gray-400/90 rounded-md font-medium backdrop-blur-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_1px_2px_rgba(0,0,0,0.08)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_1px_2px_rgba(0,0,0,0.2)] border border-gray-300/50 dark:border-white/[0.08]"
                     >
                       {getTypeLabel(result.type)}
@@ -192,10 +190,10 @@ export function SearchResultList({
                   </Kbd>
                 </div>
               </div>
-            </ListBox.Item>
+            </ListboxItem>
           );
         })}
-      </ListBox>
+      </Listbox>
     </div>
   );
 }

@@ -1,4 +1,6 @@
 import { useDebug } from '../context/DebugContext';
+import { Button, Switch } from '@heroui/react';
+import { IoClose } from 'react-icons/io5';
 import { userBehaviorTracker } from '../utils/userBehavior';
 import { searchCache } from '../utils/searchCache';
 
@@ -19,13 +21,14 @@ export function DebugPanel() {
 
   if (!isDebugOpen) {
     return (
-      <button
-        onClick={togglePanel}
-        className="fixed bottom-4 left-4 w-10 h-10 bg-gray-700/80 hover:bg-gray-600/90 backdrop-blur-sm text-gray-300 hover:text-white rounded-full shadow-lg flex items-center justify-center text-lg z-50 transition-all duration-200 border border-gray-600/50"
-        title="Debug 面板"
+      <Button
+        isIconOnly
+        size="sm"
+        onPress={togglePanel}
+        className="fixed bottom-4 left-4 w-10 h-10 bg-gray-700/80 hover:bg-gray-600/90 backdrop-blur-sm text-gray-300 hover:text-white rounded-full shadow-lg z-50"
       >
         🐛
-      </button>
+      </Button>
     );
   }
 
@@ -34,12 +37,15 @@ export function DebugPanel() {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-purple-600">
         <h3 className="font-bold text-sm">🐛 Debug 面板</h3>
-        <button
-          onClick={togglePanel}
-          className="text-white/80 hover:text-white transition-colors"
+        <Button
+          isIconOnly
+          size="sm"
+          variant="light"
+          onPress={togglePanel}
+          className="min-w-6 w-6 h-6 text-white/80 hover:text-white"
         >
-          ✕
-        </button>
+          <IoClose className="w-4 h-4" />
+        </Button>
       </div>
 
       {/* Options */}
@@ -47,14 +53,8 @@ export function DebugPanel() {
         {debugOptions.map(option => (
           <label
             key={option.key}
-            className="flex items-start gap-3 cursor-pointer group"
+            className="flex items-center justify-between gap-3 cursor-pointer group py-2"
           >
-            <input
-              type="checkbox"
-              checked={settings?.[option.key]}
-              onChange={() => toggleDebug(option.key)}
-              className="mt-1 w-4 h-4 rounded border-gray-600 bg-gray-800 text-purple-600 focus:ring-purple-500 focus:ring-offset-0"
-            />
             <div className="flex-1">
               <div className="text-sm font-medium group-hover:text-purple-400 transition-colors">
                 {option.label}
@@ -63,6 +63,12 @@ export function DebugPanel() {
                 {option.description}
               </div>
             </div>
+            <Switch
+              isSelected={settings?.[option.key]}
+              onValueChange={() => toggleDebug(option.key)}
+              size="sm"
+              color="primary"
+            />
           </label>
         ))}
       </div>

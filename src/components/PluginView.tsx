@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { convertFileSrc } from '@tauri-apps/api/core';
+import { Button } from '@heroui/react';
+import { IoClose } from 'react-icons/io5';
 import { Plugin } from '../types/plugin';
-import { X } from 'lucide-react';
 
 interface PluginViewProps {
   plugin: Plugin;
@@ -52,12 +53,15 @@ export function PluginView({ plugin, onClose }: PluginViewProps) {
               </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors group"
+          <Button
+            isIconOnly
+            variant="light"
+            size="lg"
+            onPress={onClose}
+            className="min-w-10 w-10 h-10"
           >
-            <X className="w-6 h-6 text-gray-500 dark:text-gray-400 group-hover:text-red-500 transition-colors" />
-          </button>
+            <IoClose className="w-6 h-6 text-gray-500 dark:text-gray-400" />
+          </Button>
         </div>
 
         {/* 插件内容 */}

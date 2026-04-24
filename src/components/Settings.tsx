@@ -1,31 +1,28 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { 
-  Card, 
+  Card,
   Button, 
-  Chip, 
-  Tooltip,
+  Divider,
   Switch,
-  Separator,
-  Select,
-  Label,
-  ListBox
+  Chip,
+  Tooltip
 } from '@heroui/react';
-import { IoSettingsOutline, IoCubeOutline, IoColorPaletteOutline, IoPowerOutline, IoInformationCircleOutline, IoClose, IoTrashOutline, IoBugOutline } from 'react-icons/io5';
-import { Pin, PinOff } from 'lucide-react';
+import { IoSettingsOutline, IoCubeOutline, IoColorPaletteOutline, IoPowerOutline, IoInformationCircleOutline, IoClose, IoTrashOutline, IoBugOutline, IoPinOutline, IoPin } from 'react-icons/io5';
 import { usePlugins } from '../hooks/usePlugins';
 import { useDebug } from '../context/DebugContext';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { userBehaviorTracker } from '../utils/userBehavior';
 import { searchCache } from '../utils/searchCache';
 import AppearanceSetting from './settings/AppearanceSetting';
+import GeneralSetting from './settings/GeneralSetting';
 
 interface SettingsProps {
   onClose: () => void;
   onTogglePin?: (id: string, pinned: boolean) => void;
 }
 
-// 可复用的设置卡片组件 - 使用 HeroUI Card
+// 可复用的设置卡片组件
 interface SettingsCardProps {
   children: React.ReactNode;
   className?: string;
@@ -33,118 +30,101 @@ interface SettingsCardProps {
 
 function SettingsCard({ children, className = '' }: SettingsCardProps) {
   return (
-    <Card className={`bg-white/50 dark:bg-white/[0.06] border border-gray-200/50 dark:border-white/10 rounded-md backdrop-blur-sm ${className}`}>
+    <Card className={`bg-content2 dark:bg-content2/50 border border-divider rounded-medium ${className}`}>
       {children}
     </Card>
   );
 }
 
 export function Settings({ onClose, onTogglePin }: SettingsProps) {
-  const [activeTab, setActiveTab] = useState('plugins');
+  const [activeTab, setActiveTab] = useState('appearance');
   const { plugins, loading, uninstallPlugin } = usePlugins();
   const { settings: debugSettings, toggleDebug, isDebugOpen, togglePanel } = useDebug();
-  const { settings, updateSetting, resetSettings } = useAppSettings();
+  const { resetSettings } = useAppSettings();
 
   return (
-    <div className="h-screen w-full flex flex-col overflow-hidden m-0 p-0">
-      {/* iOS 风格设置窗口 - 毛玻璃质感，占满全屏 */}
-      <div className="flex-1 ios-frosted overflow-hidden flex">
-        {/* 侧边导航 - 使用与主容器相同的背景 */}
-        <div className="w-48 flex-shrink-0 bg-transparent flex flex-col border-r border-white/10">
-          {/* Header */}
-          <div className="px-4 py-3 border-b border-gray-200/50 dark:border-white/10">
-            <div className="flex items-center justify-between">
-              <h1 className="text-xs font-semibold text-gray-700 dark:text-gray-200 tracking-wide uppercase">设置</h1>
-              <Button
-                isIconOnly
-                size="sm"
-                variant="ghost"
-                onPress={onClose}
-                className="p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded-md transition-colors duration-150"
-              >
-                <IoClose className="text-lg text-gray-500 dark:text-gray-400" />
-              </Button>
-            </div>
+    <div className="h-screen w-full flex overflow-hidden">
+      {/* 左侧导航栏 */}
+      <div className="w-52 flex-shrink-0 bg-default-50 dark:bg-default-100 border-r border-divider flex flex-col">
+        {/* 头部 */}
+        <div className="p-4 border-b border-divider">
+          <div className="flex items-center justify-between">
+            <h1 className="text-small font-semibold">设置</h1>
+            <Button
+              isIconOnly
+              size="sm"
+              variant="light"
+              onPress={onClose}
+              className="min-w-8 w-8 h-8"
+            >
+              <IoClose className="text-large" />
+            </Button>
           </div>
+        </div>
 
-          {/* Navigation Items - 使用自定义导航 */}
-          <nav className="flex-1 py-2 px-2 space-y-0.5 overflow-y-auto">
-            <NavItem
-              active={activeTab === 'plugins'}
-              onClick={() => setActiveTab('plugins')}
-              icon={<IoCubeOutline className="text-base" />}
-              label="插件管理"
-            />
+        {/* 导航项 */}
+        <nav className="flex-1 overflow-y-auto py-2">
+          {/* 应用设置分组 */}
+          <div className="px-3 py-2">
+            <p className="text-tiny text-default-500 font-medium px-2 mb-1">应用设置</p>
             <NavItem
               active={activeTab === 'appearance'}
               onClick={() => setActiveTab('appearance')}
-              icon={<IoColorPaletteOutline className="text-base" />}
+              icon={<IoColorPaletteOutline className="text-medium" />}
               label="外观"
             />
             <NavItem
               active={activeTab === 'general'}
               onClick={() => setActiveTab('general')}
-              icon={<IoSettingsOutline className="text-base" />}
+              icon={<IoSettingsOutline className="text-medium" />}
               label="通用"
             />
             <NavItem
+              active={activeTab === 'plugins'}
+              onClick={() => setActiveTab('plugins')}
+              icon={<IoCubeOutline className="text-medium" />}
+              label="插件管理"
+            />
+          </div>
+
+          <Divider className="my-2" />
+
+          {/* 其他分组 */}
+          <div className="px-3 py-2">
+            <p className="text-tiny text-default-500 font-medium px-2 mb-1">其他</p>
+            <NavItem
               active={activeTab === 'about'}
               onClick={() => setActiveTab('about')}
-              icon={<IoInformationCircleOutline className="text-base" />}
+              icon={<IoInformationCircleOutline className="text-medium" />}
               label="关于"
             />
             {import.meta.env.DEV && (
               <NavItem
                 active={activeTab === 'debug'}
                 onClick={() => setActiveTab('debug')}
-                icon={<IoBugOutline className="text-base" />}
+                icon={<IoBugOutline className="text-medium" />}
                 label="开发者选项"
               />
             )}
-          </nav>
-        </div>
-
-        {/* Content Area */}
-        <div className="flex-1 overflow-y-auto bg-transparent">
-          <div className="px-6 py-4">
-            {activeTab === 'plugins' && <PluginsTab plugins={plugins} loading={loading} onUninstall={uninstallPlugin} onTogglePin={onTogglePin} />}
-            {activeTab === 'appearance' && (
-              <AppearanceSetting />
-            )}
-            {activeTab === 'general' && (
-              <GeneralTab
-                autoStart={settings.autoStart}
-                onAutoStartChange={(value) => updateSetting('autoStart', value)}
-                language={settings.language}
-                onLanguageChange={(value) => updateSetting('language', value as 'zh-CN' | 'en-US')}
-                showTrayIcon={settings.showTrayIcon}
-                onShowTrayIconChange={(value) => updateSetting('showTrayIcon', value)}
-                enableAnimations={settings.enableAnimations}
-                onEnableAnimationsChange={(value) => updateSetting('enableAnimations', value)}
-                globalShortcut={settings.globalShortcut}
-                onGlobalShortcutChange={async (value) => {
-                  updateSetting('globalShortcut', value);
-                  // 立即更新后端快捷键注册
-                  try {
-                    console.log('[Settings] Updating global shortcut to:', value);
-                    await invoke('update_global_shortcut', { shortcut: value });
-                    console.log('[Settings] ✓ Global shortcut updated successfully');
-                  } catch (error) {
-                    console.error('[Settings] Failed to update global shortcut:', error);
-                  }
-                }}
-              />
-            )}
-            {activeTab === 'about' && <AboutTab onReset={resetSettings} />}
-            {import.meta.env.DEV && activeTab === 'debug' && (
-              <DebugTab
-                debugSettings={debugSettings}
-                onToggleDebug={toggleDebug}
-                isDebugOpen={isDebugOpen}
-                onTogglePanel={togglePanel}
-              />
-            )}
           </div>
+        </nav>
+      </div>
+
+      {/* 右侧内容区 */}
+      <div className="flex-1 overflow-y-auto bg-content1 dark:bg-content1/50">
+        <div className="p-6">
+          {activeTab === 'appearance' && <AppearanceSetting />}
+          {activeTab === 'general' && <GeneralSetting />}
+          {activeTab === 'plugins' && <PluginsTab plugins={plugins} loading={loading} onUninstall={uninstallPlugin} onTogglePin={onTogglePin} />}
+          {activeTab === 'about' && <AboutTab onReset={resetSettings} />}
+          {import.meta.env.DEV && activeTab === 'debug' && (
+            <DebugTab
+              debugSettings={debugSettings}
+              onToggleDebug={toggleDebug}
+              isDebugOpen={isDebugOpen}
+              onTogglePanel={togglePanel}
+            />
+          )}
         </div>
       </div>
     </div>
@@ -162,12 +142,13 @@ interface NavItemProps {
 function NavItem({ active, onClick, icon, label }: NavItemProps) {
   return (
     <Button
-      variant={active ? "primary" : "ghost"}
+      variant={active ? "solid" : "light"}
+      color={active ? "primary" : undefined}
       onPress={onClick}
-      className={`w-full justify-start gap-2.5 px-2.5 py-1.5 h-auto min-h-[36px] rounded-md transition-all duration-150 text-sm ${
+      className={`w-full justify-start gap-3 px-3 py-2 h-auto min-h-[36px] rounded-md text-small ${
         active
-          ? 'bg-blue-500/20 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 font-medium'
-          : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/[0.06]'
+          ? 'font-medium'
+          : ''
       }`}
     >
       {icon}
@@ -186,19 +167,14 @@ interface PluginsTabProps {
 
 function PluginsTab({ plugins, loading, onUninstall, onTogglePin }: PluginsTabProps) {
   const { isPluginPinned, getPinnedPlugins } = useAppSettings();
-  // 使用 state 来跟踪 pinned 插件列表，以便在变化时重新渲染
   const [_pinnedPlugins, setPinnedPlugins] = useState<Set<string>>(() => getPinnedPlugins());
 
-  // 监听 pinned 插件变化
   useEffect(() => {
     const handleStorageChange = () => {
       setPinnedPlugins(getPinnedPlugins());
     };
 
-    // 监听 storage 事件（跨标签页）
     window.addEventListener('storage', handleStorageChange);
-    
-    // 自定义事件（同一页面）
     window.addEventListener('plugin-pinned-changed', handleStorageChange);
     
     return () => {
@@ -208,90 +184,91 @@ function PluginsTab({ plugins, loading, onUninstall, onTogglePin }: PluginsTabPr
   }, [getPinnedPlugins]);
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 tracking-tight">已安装插件</h2>
+    <div>
+      {/* 页面标题 */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold mb-1">插件管理</h1>
+        <p className="text-small text-default-500">管理已安装的插件</p>
+      </div>
+
+      <Divider className="mb-6" />
+
+      {/* 操作栏 */}
+      <div className="flex items-center gap-3 mb-6">
         <Button
           size="sm"
-          variant="primary"
-          className="px-3 py-1.5 bg-blue-600/80 hover:bg-blue-700/90 text-white rounded-md transition-colors duration-150 text-xs font-medium shadow-sm backdrop-blur-sm border border-white/10 dark:border-white/15"
+          color="primary"
+          className="px-4"
         >
           安装插件
         </Button>
       </div>
     
       {loading ? (
-        <div className="text-center py-8 text-gray-500 dark:text-gray-400">加载中...</div>
+        <div className="text-center py-12 text-default-500">加载中...</div>
       ) : plugins.length === 0 ? (
-        <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+        <div className="text-center py-12 text-default-500">
           <p>暂无已安装的插件</p>
-          <p className="text-sm mt-2">点击右上角"安装插件"按钮添加新插件</p>
+          <p className="text-small mt-2">点击"安装插件"按钮添加新插件</p>
         </div>
       ) : (
-        <div className="grid gap-2">
+        <div className="space-y-3">
           {plugins.map((plugin) => {
-            // 合并 plugin.json 中的 pinned 和 localStorage 中的 pinned
             const isPinned = plugin.pinned || isPluginPinned(plugin.id);
             
             return (
-              <SettingsCard key={plugin.id} className="p-3.5 hover:shadow-md transition-shadow duration-200">
+              <SettingsCard key={plugin.id} className="p-4">
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg opacity-90">{plugin.icon || '🔌'}</span>
-                      <h3 className="font-medium text-gray-900 dark:text-gray-100 text-sm tracking-tight">{plugin.name}</h3>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xl">{plugin.icon || '🔌'}</span>
+                      <h3 className="font-medium text-foreground text-small">{plugin.name}</h3>
                       <Chip
                         size="sm"
-                        variant="soft"
-                        className="text-[10px] px-1.5 py-0.5 bg-black/5 dark:bg-white/[0.08] text-gray-600 dark:text-gray-400/80 rounded-md font-medium"
+                        variant="flat"
+                        className="text-tiny"
                       >
                         v{plugin.version}
                       </Chip>
                       {isPinned && (
                         <Chip
                           size="sm"
-                          color="accent"
-                          variant="soft"
-                          className="text-[10px] px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-md font-medium flex items-center gap-1"
+                          color="primary"
+                          variant="flat"
+                          className="text-tiny flex items-center gap-1"
                         >
-                          <Pin className="w-3 h-3" />
+                          <IoPin className="w-3 h-3" />
                           已固定
                         </Chip>
                       )}
                     </div>
-                    <p className="text-xs text-gray-600 dark:text-gray-400/70 mt-1 leading-relaxed">{plugin.description}</p>
+                    <p className="text-tiny text-default-500">{plugin.description}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     {onTogglePin && (
-                      <Tooltip>
+                      <Tooltip content={isPinned ? '取消固定' : '固定在搜索结果'}>
                         <Button
                           isIconOnly
                           size="sm"
-                          variant="ghost"
+                          variant="light"
                           onPress={() => onTogglePin(plugin.id, !isPinned)}
-                          className={`p-1.5 rounded-md transition-all duration-150 ${
-                            isPinned
-                              ? 'text-blue-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20'
-                              : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800'
-                          }`}
+                          className={isPinned ? 'text-primary' : 'text-default-400'}
                         >
                           {isPinned ? (
-                            <Pin className="w-4 h-4" />
+                            <IoPin className="w-4 h-4" />
                           ) : (
-                            <PinOff className="w-4 h-4" />
+                            <IoPinOutline className="w-4 h-4" />
                           )}
                         </Button>
-                        <Tooltip.Content>
-                          {isPinned ? '取消固定' : '固定在搜索结果'}
-                        </Tooltip.Content>
                       </Tooltip>
                     )}
-                    <Tooltip>
+                    <Tooltip content="卸载插件">
                       <Button
                         isIconOnly
                         size="sm"
-                        variant="ghost"
-                        className="p-1.5 text-red-500/80 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-all duration-150"
+                        variant="light"
+                        color="danger"
+                        className="text-default-400"
                         onPress={() => {
                           invoke('log_frontend_message', { level: 'info', message: `User clicked uninstall for plugin: ${plugin.id}` });
                           onUninstall(plugin.id);
@@ -299,9 +276,6 @@ function PluginsTab({ plugins, loading, onUninstall, onTogglePin }: PluginsTabPr
                       >
                         <IoTrashOutline className="text-base" />
                       </Button>
-                      <Tooltip.Content>
-                        卸载插件
-                      </Tooltip.Content>
                     </Tooltip>
                   </div>
                 </div>
@@ -314,305 +288,55 @@ function PluginsTab({ plugins, loading, onUninstall, onTogglePin }: PluginsTabPr
   );
 }
 
-// 通用设置标签页
-interface GeneralTabProps {
-  autoStart: boolean;
-  onAutoStartChange: (value: boolean) => void;
-  language: string;
-  onLanguageChange: (value: string) => void;
-  showTrayIcon: boolean;
-  onShowTrayIconChange: (value: boolean) => void;
-  enableAnimations: boolean;
-  onEnableAnimationsChange: (value: boolean) => void;
-  globalShortcut: string;
-  onGlobalShortcutChange: (value: string) => void;
-}
-
-function GeneralTab({
-  autoStart,
-  onAutoStartChange,
-  language,
-  onLanguageChange,
-  showTrayIcon,
-  onShowTrayIconChange,
-  enableAnimations,
-  onEnableAnimationsChange,
-  globalShortcut,
-  onGlobalShortcutChange,
-}: GeneralTabProps) {
-  // 【新特性】快捷键可用性状态
-  const [shortcutAvailable, setShortcutAvailable] = useState<boolean | null>(null);
-  const [checkingShortcut, setCheckingShortcut] = useState(false);
-  
-  // 使用 ref 跟踪是否已经检查过当前快捷键，避免重复检查
-  const lastCheckedShortcut = useRef<string>('');
-
-  // 监听快捷键变化，检查是否可用
-  useEffect(() => {
-    // 如果和上次检查的是同一个快捷键，跳过检查
-    if (globalShortcut === lastCheckedShortcut.current) {
-      return;
-    }
-    
-    let mounted = true;
-    
-    const checkAvailability = async () => {
-      setCheckingShortcut(true);
-      try {
-        const available = await invoke('check_shortcut_available', { shortcut: globalShortcut });
-        if (mounted) {
-          setShortcutAvailable(available as boolean);
-          lastCheckedShortcut.current = globalShortcut; // 记录已检查的快捷键
-          console.log('[Settings] Shortcut availability:', available);
-        }
-      } catch (error) {
-        console.error('[Settings] Failed to check shortcut availability:', error);
-        if (mounted) {
-          setShortcutAvailable(null);
-        }
-      } finally {
-        if (mounted) {
-          setCheckingShortcut(false);
-        }
-      }
-    };
-
-    // 立即执行检查，不使用延迟（因为已经有去重逻辑）
-    checkAvailability();
-    
-    return () => {
-      mounted = false;
-    };
-  }, [globalShortcut]);
-  return (
-    <div className="space-y-4">
-      <SettingsCard className="p-4.5">
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 tracking-tight">启动设置</h3>
-        
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium text-gray-900 dark:text-gray-100 text-sm tracking-tight">开机自启</p>
-              <p className="text-xs text-gray-600 dark:text-gray-400/70 mt-0.5">系统启动时自动运行 Quick Actions</p>
-            </div>
-            <Switch
-              isSelected={autoStart}
-              onChange={() => onAutoStartChange(!autoStart)}
-            >
-              <Switch.Control>
-                <Switch.Thumb />
-              </Switch.Control>
-              <Switch.Content>
-                <Label className="sr-only">开机自启</Label>
-              </Switch.Content>
-            </Switch>
-          </div>
-
-          <Separator className="my-3" />
-
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium text-gray-900 dark:text-gray-100 text-sm tracking-tight">显示托盘图标</p>
-              <p className="text-xs text-gray-600 dark:text-gray-400/70 mt-0.5">在系统托盘中显示应用图标</p>
-            </div>
-            <Switch
-              isSelected={showTrayIcon}
-              onChange={() => onShowTrayIconChange(!showTrayIcon)}
-            >
-              <Switch.Control>
-                <Switch.Thumb />
-              </Switch.Control>
-              <Switch.Content>
-                <Label className="sr-only">显示托盘图标</Label>
-              </Switch.Content>
-            </Switch>
-          </div>
-        </div>
-      </SettingsCard>
-
-      <SettingsCard className="p-4.5">
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 tracking-tight">快捷键设置</h3>
-        
-        <div className="space-y-3">
-          <Select 
-            selectedKey={globalShortcut}
-            onChange={(key) => {
-              if (key) {
-                onGlobalShortcutChange(String(key));
-              }
-            }}
-            isDisabled={checkingShortcut}
-            placeholder="选择快捷键"
-            className={`max-w-xs ${
-              shortcutAvailable === false ? 'border-yellow-400 dark:border-yellow-500/60' : ''
-            }`}
-            variant="secondary"
-          >
-            <Label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-              呼出窗口快捷键
-            </Label>
-            <Select.Trigger>
-              <Select.Value />
-              <Select.Indicator />
-            </Select.Trigger>
-            <Select.Popover>
-              <ListBox>
-                <ListBox.Item id="Ctrl+Space" textValue="Ctrl + Space">
-                  Ctrl + Space
-                  <ListBox.ItemIndicator />
-                </ListBox.Item>
-                <ListBox.Item id="Alt+Space" textValue="Alt + Space">
-                  Alt + Space
-                  <ListBox.ItemIndicator />
-                </ListBox.Item>
-                <ListBox.Item id="Ctrl+Shift+Space" textValue="Ctrl + Shift + Space">
-                  Ctrl + Shift + Space
-                  <ListBox.ItemIndicator />
-                </ListBox.Item>
-                <ListBox.Item id="Alt+Shift+Space" textValue="Alt + Shift + Space">
-                  Alt + Shift + Space
-                  <ListBox.ItemIndicator />
-                </ListBox.Item>
-                <ListBox.Item id="Ctrl+`" textValue="Ctrl + `">
-                  Ctrl + `
-                  <ListBox.ItemIndicator />
-                </ListBox.Item>
-                <ListBox.Item id="Alt+`" textValue="Alt + `">
-                  Alt + `
-                  <ListBox.ItemIndicator />
-                </ListBox.Item>
-              </ListBox>
-            </Select.Popover>
-          </Select>
-          
-          {/* 状态指示器 - 仅在检查中或冲突时显示 */}
-          {checkingShortcut && (
-            <div className="flex-shrink-0 w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-          )}
-          {!checkingShortcut && shortcutAvailable === false && (
-            <div className="flex-shrink-0 flex items-center gap-1 text-yellow-600 dark:text-yellow-400">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-            </div>
-          )}
-          
-          {/* 状态提示文字 - 仅在冲突时显示 */}
-          {checkingShortcut && (
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
-              ⏳ 正在检查快捷键可用性...
-            </p>
-          )}
-          {!checkingShortcut && shortcutAvailable === false && (
-            <p className="text-xs text-yellow-600 dark:text-yellow-400/80 mt-1.5">
-              ⚠️ 此快捷键可能已被其他应用占用
-            </p>
-          )}
-        </div>
-      </SettingsCard>
-
-      <SettingsCard className="p-4.5">
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 tracking-tight">语言与区域</h3>
-        
-        <Select 
-          selectedKey={language}
-          onChange={(key) => {
-            if (key) {
-              onLanguageChange(String(key));
-            }
-          }}
-          placeholder="选择语言"
-          className="max-w-xs"
-          variant="secondary"
-        >
-          <Label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-            界面语言
-          </Label>
-          <Select.Trigger>
-            <Select.Value />
-            <Select.Indicator />
-          </Select.Trigger>
-          <Select.Popover>
-            <ListBox>
-              <ListBox.Item id="zh-CN" textValue="简体中文">
-                简体中文
-                <ListBox.ItemIndicator />
-              </ListBox.Item>
-              <ListBox.Item id="en-US" textValue="English">
-                English
-                <ListBox.ItemIndicator />
-              </ListBox.Item>
-            </ListBox>
-          </Select.Popover>
-        </Select>
-      </SettingsCard>
-
-      <SettingsCard className="p-4.5">
-        <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3 tracking-tight">动画效果</h3>
-        
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="font-medium text-gray-900 dark:text-gray-100 text-sm tracking-tight">启用动画</p>
-            <p className="text-xs text-gray-600 dark:text-gray-400/70 mt-0.5">开启界面过渡动画效果</p>
-          </div>
-          <Switch
-            isSelected={enableAnimations}
-            onChange={() => onEnableAnimationsChange(!enableAnimations)}
-          >
-            <Switch.Control>
-              <Switch.Thumb />
-            </Switch.Control>
-            <Switch.Content>
-              <Label className="sr-only">启用动画</Label>
-            </Switch.Content>
-          </Switch>
-        </div>
-      </SettingsCard>
-    </div>
-  );
-}
-
 // 关于标签页
 function AboutTab({ onReset }: { onReset?: () => void }) {
   return (
-    <div className="space-y-4">
-      <SettingsCard className="p-5">
-        <div className="text-center mb-4">
-          <div className="w-16 h-16 mx-auto mb-3 bg-gradient-to-br from-blue-500/80 to-purple-600/80 rounded-2xl flex items-center justify-center shadow-lg backdrop-blur-sm border border-white/10">
-            <IoSettingsOutline className="text-3xl text-white" />
+    <div>
+      {/* 页面标题 */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold mb-1">关于</h1>
+        <p className="text-small text-default-500">查看应用信息和版本</p>
+      </div>
+
+      <Divider className="mb-6" />
+
+      <SettingsCard className="p-6">
+        <div className="text-center mb-6">
+          <div className="w-20 h-20 mx-auto mb-4 bg-gradient-to-br from-primary-500 to-primary-600 rounded-2xl flex items-center justify-center shadow-lg">
+            <IoSettingsOutline className="text-4xl text-white" />
           </div>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 tracking-tight">Quick Actions</h2>
-          <p className="text-gray-600 dark:text-gray-400/70 mt-1 text-sm font-medium">版本 0.1.0</p>
+          <h2 className="text-xl font-bold text-foreground">Quick Actions</h2>
+          <p className="text-small text-default-500 mt-1">版本 0.1.0</p>
         </div>
 
-        <hr className="my-3 border-gray-200/50 dark:border-white/10" />
+        <Divider className="my-4" />
 
-        <div className="space-y-2">
+        <div className="space-y-3">
           <a
             href="https://github.com"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-2.5 p-2.5 rounded-md hover:bg-black/5 dark:hover:bg-white/[0.06] transition-all duration-150"
+            className="flex items-center gap-3 p-3 rounded-medium hover:bg-default-100 transition-colors"
           >
-            <svg className="w-5 h-5 text-gray-600 dark:text-gray-300" fill="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5 text-default-600" fill="currentColor" viewBox="0 0 24 24">
               <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
             </svg>
             <div className="flex-1">
-              <p className="font-medium text-gray-900 dark:text-gray-100 text-sm tracking-tight">GitHub 仓库</p>
-              <p className="text-xs text-gray-600 dark:text-gray-400/70">查看源代码和提交问题</p>
+              <p className="font-medium text-foreground text-small">GitHub 仓库</p>
+              <p className="text-tiny text-default-500">查看源代码和提交问题</p>
             </div>
           </a>
 
-          <div className="flex items-center gap-2.5 p-2.5 rounded-md">
-            <IoPowerOutline className="text-lg text-gray-500 dark:text-gray-400" />
+          <div className="flex items-center gap-3 p-3 rounded-medium">
+            <IoPowerOutline className="text-medium text-default-500" />
             <div className="flex-1">
-              <p className="font-medium text-gray-900 dark:text-gray-100 text-sm tracking-tight">技术栈</p>
-              <p className="text-xs text-gray-600 dark:text-gray-400/70">Tauri + React + TypeScript + Rust</p>
+              <p className="font-medium text-foreground text-small">技术栈</p>
+              <p className="text-tiny text-default-500">Tauri + React + TypeScript + Rust</p>
             </div>
           </div>
         </div>
 
-        <Separator className="my-3" />
+        <Divider className="my-4" />
 
         {/* Reset Settings Button */}
         <Button
@@ -621,16 +345,17 @@ function AboutTab({ onReset }: { onReset?: () => void }) {
               onReset?.();
             }
           }}
-          variant="ghost"
-          className="w-full gap-2 p-2.5 rounded-md font-medium text-sm text-red-600 dark:text-red-400 hover:bg-red-500/10 dark:hover:bg-red-500/20"
+          variant="flat"
+          color="danger"
+          className="w-full gap-2"
         >
           <IoPowerOutline className="text-base" />
           <span>重置所有设置</span>
         </Button>
 
-        <Separator className="my-3" />
+        <Divider className="my-4" />
 
-        <div className="text-center text-xs text-gray-500 dark:text-gray-400/60 font-medium">
+        <div className="text-center text-tiny text-default-500">
           <p>© 2024 Quick Actions. All rights reserved.</p>
         </div>
       </SettingsCard>
@@ -811,7 +536,6 @@ function DebugTab({ debugSettings, onToggleDebug, isDebugOpen, onTogglePanel }: 
           </div>
           <Button
             onPress={onTogglePanel}
-            variant={isDebugOpen ? "primary" : "ghost"}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
               isDebugOpen
                 ? 'bg-purple-600 text-white hover:bg-purple-700'
@@ -840,15 +564,8 @@ function DebugTab({ debugSettings, onToggleDebug, isDebugOpen, onTogglePanel }: 
               </div>
               <Switch
                 isSelected={debugSettings[option.key as keyof typeof debugSettings] || false}
-                onChange={() => onToggleDebug(option.key as keyof import('../context/DebugContext').DebugSettings)}
-              >
-                <Switch.Control>
-                  <Switch.Thumb />
-                </Switch.Control>
-                <Switch.Content>
-                  <Label className="sr-only">{option.label}</Label>
-                </Switch.Content>
-              </Switch>
+                onValueChange={() => onToggleDebug(option.key as keyof import('../context/DebugContext').DebugSettings)}
+              />
             </div>
           ))}
         </div>

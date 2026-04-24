@@ -1,9 +1,21 @@
-import { Button, Switch } from '@heroui/react'
+import { Button, Divider, Select, SelectItem, Switch } from '@heroui/react'
 import { useTheme } from 'next-themes'
-import { useEffect, useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import { useAppSettings } from '../../hooks/useAppSettings'
 import { Theme } from '../providers/ThemeProvider'
+
+// 语言配置
+const languages = [
+  {
+    label: '简体中文',
+    value: 'zh-CN',
+  },
+  {
+    label: 'English',
+    value: 'en-US',
+  },
+]
 
 // 主题图标组件
 function LightThemeIcon() {
@@ -53,9 +65,9 @@ export default function AppearanceSetting() {
   const [mounted, setMounted] = useState(false)
 
   // 等待组件挂载，避免 hydration 不匹配
-  useEffect(() => {
+  useState(() => {
     setMounted(true)
-  }, [])
+  })
 
   const switchTheme = (newTheme: Theme) => {
     // 关闭跟随系统
@@ -74,131 +86,112 @@ export default function AppearanceSetting() {
     }
   }
 
+  // 当前语言
+  const currentLanguage = useMemo(() => {
+    try {
+      const currentLang = settings.language ?? languages[0].value
+      if (!languages.map(({ value }) => value).find((lang) => lang === currentLang)) {
+        updateSetting('language', 'zh-CN')
+      }
+      return new Set([currentLang])
+    } catch (_) {
+      return new Set([languages[0].value])
+    }
+  }, [settings.language])
+
+  const changeLanguage = async (language: string) => {
+    updateSetting('language', language as 'zh-CN' | 'en-US')
+  }
+
   if (!mounted) {
     return null
   }
 
   return (
-    <div className="flex flex-col space-y-6">
-      {/* 主题设置 */}
-      <section>
-        <div>
-          <p className="font-bold text-large text-gray-900 dark:text-gray-100">主题</p>
-        </div>
+    <div className="flex flex-col">
+      {/* 页面标题 */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold mb-1">外观</h1>
+        <p className="text-small text-default-500">自定义应用的外观和主题设置</p>
+      </div>
 
-        {/* 跟随系统开关 */}
+      <Divider className="mb-6" />
+
+      {/* 主题设置 */}
+      <section className="mb-8">
+        <div className="mb-4">
+          <p className="font-semibold text-medium mb-1">主题</p>
+          <p className="text-small text-default-500">选择应用的主题模式</p>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="flex flex-col items-center">
+            <Button
+              aria-label="深色主题"
+              className="w-[96px] h-[72px] p-0 flex justify-center items-center relative"
+              onPress={() => switchTheme(Theme.DARK)}
+            >
+              <div>
+                <DarkThemeIcon />
+              </div>
+              {theme === Theme.DARK && <CheckIcon className="absolute text-primary" width={20} />}
+            </Button>
+            <p className="text-tiny text-default-500 mt-2">深色</p>
+          </div>
+          <div className="flex flex-col items-center">
+            <Button
+              aria-label="浅色主题"
+              className="w-[96px] h-[72px] p-0 flex justify-center items-center relative"
+              onPress={() => switchTheme(Theme.LIGHT)}
+            >
+              <div>
+                <LightThemeIcon />
+              </div>
+              {theme === Theme.LIGHT && <CheckIcon className="absolute text-primary" width={20} />}
+            </Button>
+            <p className="text-tiny text-default-500 mt-2">浅色</p>
+          </div>
+        </div>
         <div className="mt-4 flex items-center">
-          <p className="text-default-700 text-gray-700 dark:text-gray-300">跟随系统</p>
-          <div className="ml-auto flex gap-4">
+          <p className="text-small text-default-600">跟随系统主题</p>
+          <div className="ml-auto">
             <Switch
               aria-label="跟随系统主题"
               size="sm"
+              color="primary"
               isSelected={settings.syncWithSystemTheme}
-              onChange={() => toggleSyncWithSystem(!settings.syncWithSystemTheme)}
+              onValueChange={() => toggleSyncWithSystem(!settings.syncWithSystemTheme)}
             />
-          </div>
-        </div>
-
-        {/* 主题选择按钮 */}
-        <div className="mt-4 flex items-center">
-          <p className="text-default-700 text-gray-700 dark:text-gray-300">切换主题</p>
-          <div className="ml-auto flex gap-3">
-            {/* 深色主题 */}
-            <div className="flex flex-col items-center">
-              <Button
-                aria-label="深色主题"
-                className="w-[96px] h-[72px] p-0 flex justify-center items-center relative bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-400 transition-all"
-                onPress={() => switchTheme(Theme.DARK)}
-              >
-                <div>
-                  <DarkThemeIcon />
-                </div>
-                {theme === Theme.DARK && (
-                  <CheckIcon className="absolute text-primary" width={20} />
-                )}
-              </Button>
-              <span className="mt-2 text-xs text-gray-600 dark:text-gray-400">深色</span>
-            </div>
-
-            {/* 浅色主题 */}
-            <div className="flex flex-col items-center">
-              <Button
-                aria-label="浅色主题"
-                className="w-[96px] h-[72px] p-0 flex justify-center items-center relative bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 hover:border-blue-500 dark:hover:border-blue-400 transition-all"
-                onPress={() => switchTheme(Theme.LIGHT)}
-              >
-                <div>
-                  <LightThemeIcon />
-                </div>
-                {theme === Theme.LIGHT && (
-                  <CheckIcon className="absolute text-primary" width={20} />
-                )}
-              </Button>
-              <span className="mt-2 text-xs text-gray-600 dark:text-gray-400">浅色</span>
-            </div>
           </div>
         </div>
       </section>
 
-      {/* 分隔线 */}
-      <div className="my-6 h-px bg-gray-200 dark:bg-gray-700" />
+      <Divider className="mb-6" />
 
-      {/* 其他外观设置 */}
+      {/* 语言设置 */}
       <section>
-        <div>
-          <p className="font-bold text-large text-gray-900 dark:text-gray-100">其他设置</p>
+        <div className="mb-4">
+          <p className="font-semibold text-medium mb-1">语言</p>
+          <p className="text-small text-default-500">选择应用的显示语言</p>
         </div>
-
-        {/* 启用动画 */}
-        <div className="mt-4 flex items-center">
-          <p className="text-default-700 text-gray-700 dark:text-gray-300">启用动画效果</p>
-          <div className="ml-auto">
-            <Switch
-              aria-label="启用动画"
-              size="sm"
-              isSelected={settings.enableAnimations}
-              onChange={() => updateSetting('enableAnimations', !settings.enableAnimations)}
-            />
-          </div>
-        </div>
-
-        {/* 布局密度 */}
-        <div className="mt-4 flex items-center">
-          <p className="text-default-700 text-gray-700 dark:text-gray-300">布局密度</p>
-          <div className="ml-auto flex gap-2">
-            <Button
-              size="sm"
-              variant={settings.layoutDensity === 'compact' ? 'primary' : 'outline'}
-              onPress={() => updateSetting('layoutDensity', 'compact')}
-            >
-              紧凑
-            </Button>
-            <Button
-              size="sm"
-              variant={settings.layoutDensity === 'comfortable' ? 'primary' : 'outline'}
-              onPress={() => updateSetting('layoutDensity', 'comfortable')}
-            >
-              宽松
-            </Button>
-          </div>
-        </div>
-
-        {/* 窗口透明度 */}
-        <div className="mt-4 flex items-center">
-          <p className="text-default-700 text-gray-700 dark:text-gray-300">
-            窗口透明度: {Math.round(settings.windowOpacity * 100)}%
-          </p>
-          <div className="ml-auto w-48">
-            <input
-              type="range"
-              min="0.5"
-              max="1"
-              step="0.01"
-              value={settings.windowOpacity}
-              onChange={(e) => updateSetting('windowOpacity', parseFloat(e.target.value))}
-              className="w-full accent-blue-500"
-            />
-          </div>
+        <div className="flex items-center">
+          <Select
+            className="w-48"
+            label="选择语言"
+            labelPlacement="outside"
+            classNames={{ label: 'hidden', base: '!mt-0' }}
+            selectionMode="single"
+            selectedKeys={currentLanguage}
+            disallowEmptySelection
+            items={languages}
+            onSelectionChange={(keys) => {
+              const key = keys === 'all' ? languages[0].value : Array.from(keys)[0]
+              if (key) {
+                changeLanguage(String(key))
+              }
+            }}
+          >
+            {(language) => <SelectItem key={language.value}>{language.label}</SelectItem>}
+          </Select>
         </div>
       </section>
     </div>
