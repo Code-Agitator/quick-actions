@@ -1,8 +1,10 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Divider } from '@heroui/react';
+
+import { motion, AnimatePresence } from 'framer-motion';
 import { SearchBar, SearchBarRef } from "./components/SearchBar";
 import { SearchResultListMemo } from "./components/SearchResultList";
+import { QuickButtons } from './components/QuickButtons';
 import { Settings } from "./components/Settings";
 import { usePlugins } from "./hooks/usePlugins";
 import { useApplications } from "./hooks/useApplications";
@@ -16,9 +18,11 @@ import { userBehaviorTracker } from "./utils/userBehavior";
 function App() {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [interactionSource, setInteractionSource] = useState<'keyboard' | 'mouse'>('keyboard');
   const [indexReady, setIndexReady] = useState(false); // 标记索引是否就绪
   const [showSettings, setShowSettings] = useState(false); // 显示设置页面
   const [isExpanded, setIsExpanded] = useState(false); // 窗口是否展开
+  const [isQuickMode, setIsQuickMode] = useState(false); // 快捷模式（缩短搜索框）
   const searchBarRef = useRef<SearchBarRef>(null);
   const { plugins } = usePlugins();
   const { applications, reload: reloadApplications } = useApplications();
@@ -62,10 +66,10 @@ function App() {
     
     console.log('[App] Query changed:', JSON.stringify(query), '-> expanding:', shouldExpand, 'newHeight:', newHeight);
     
-    // 先更新状态
+    // 1. 先更新状态，触发 UI 准备
     setIsExpanded(shouldExpand);
     
-    // 通过 Rust 后端调整窗口大小
+    // 2. 立即通过 Rust 后端调整窗口大小
     invoke('set_main_window_size', { height: newHeight })
       .then(() => console.log('[App] Window resized to height:', newHeight))
       .catch(err => console.error('[App] Failed to resize:', err));
@@ -299,6 +303,13 @@ function App() {
   // 键盘导航
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // 快捷模式切换：Alt (切换逻辑)
+      if (e.key === 'Alt' && !e.repeat) {
+        e.preventDefault(); // 阻止系统默认的菜单激活行为
+        setIsQuickMode(prev => !prev);
+        return;
+      }
+      
       // 只处理我们关心的键
       if (!['ArrowDown', 'ArrowUp', 'Enter', 'Escape'].includes(e.key)) {
         return;
@@ -309,11 +320,13 @@ function App() {
       
       switch (e.key) {
         case 'ArrowDown':
+          setInteractionSource('keyboard');
           setSelectedIndex(prev => 
             prev < searchResults.length - 1 ? prev + 1 : prev
           );
           break;
         case 'ArrowUp':
+          setInteractionSource('keyboard');
           setSelectedIndex(prev => prev > 0 ? prev - 1 : 0);
           break;
         case 'Enter':
@@ -374,12 +387,21 @@ function App() {
       }
     };
 
+    const handleKeyUp = (e: KeyboardEvent) => {
+      // 移除自动退出逻辑，改为完全由 Alt 键切换控制
+      // if (!e.altKey) {
+      //   setIsQuickMode(false);
+      // }
+    };
+
     // 使用 capture 阶段捕获，确保优先于其他事件处理
     // 只监听 keydown，避免重复触发
     window.addEventListener('keydown', handleKeyDown, true);
+    window.addEventListener('keyup', handleKeyUp, true);
     
     return () => {
       window.removeEventListener('keydown', handleKeyDown, true);
+      window.removeEventListener('keyup', handleKeyUp, true);
     };
   }, [searchResults, selectedIndex, plugins, showSettings, query]);
 
@@ -448,26 +470,62 @@ function App() {
             className="flex-1 flex flex-col overflow-hidden ios-frosted h-full"
           >
             {/* 搜索栏 - 与 Spotlight 一致的极简设计 */}
-            <div className="flex-shrink-0 flex items-center w-full" style={{ height: '64px' }}>
+            <div className="flex-shrink-0 flex items-center w-full px-4" style={{ height: '64px' }}>
               <SearchBar 
                 ref={searchBarRef}
                 value={query} 
                 onChange={setQuery}
                 onOpenSettings={() => setShowSettings(true)}
+                isQuickMode={isQuickMode}
               />
+              <AnimatePresence mode="wait">
+                {isQuickMode && (
+                  <motion.div
+                    initial={{ width: 0, opacity: 0 }}
+                    animate={{ width: 'auto', opacity: 1 }}
+                    exit={{ width: 0, opacity: 0 }}
+                    transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                    className="overflow-hidden flex-shrink-0"
+                  >
+                    <div className="flex items-center gap-2 pl-2">
+                      <QuickButtons 
+                        onExecute={(item) => {
+                          // 执行快捷按钮逻辑
+                          console.log('Quick button executed:', item.id);
+                          if (item.id === 'settings') {
+                            setShowSettings(true);
+                          }
+                          setIsQuickMode(false);
+                        }} 
+                      />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             {/* 分隔线 - 仅在展开时显示 */}
-            <Divider 
-              className={`mx-4 transition-all duration-200 ease-out ${
+            <div 
+              className={`mx-4 h-[1px] bg-gray-200 dark:bg-white/5 transition-all duration-200 ease-out ${
                 isExpanded ? 'opacity-100 my-2' : 'opacity-0 my-0'
               }`}
             />
 
             {/* 内容区域 - 使用 flex 实现流畅的展开/收缩动画 */}
-            <div 
-              className={`flex flex-col transition-all duration-200 ease-out ${
-                isExpanded ? 'flex-1 opacity-100 min-h-0' : 'flex-none h-0 opacity-0'
+            <motion.div 
+              layout
+              initial={false}
+              animate={{ 
+                opacity: isExpanded ? 1 : 0,
+                height: isExpanded ? 'auto' : 0
+              }}
+              transition={{ 
+                duration: 0.25, 
+                ease: [0.22, 1, 0.36, 1],
+                opacity: { delay: isExpanded ? 0.1 : 0 } // 展开时延迟显示内容，收起时立即消失
+              }}
+              className={`flex flex-col overflow-hidden ${
+                isExpanded ? 'flex-1 min-h-0' : 'flex-none'
               }`}
             >
               <div className="flex-1 overflow-y-auto scrollbar-thin py-1 min-h-0">
@@ -477,9 +535,11 @@ function App() {
                   onExecute={handleExecute}
                   selectedIndex={selectedIndex}
                   onSelectIndex={setSelectedIndex}
+                  interactionSource={interactionSource}
+                  onInteractionChange={setInteractionSource}
                 />
               </div>
-            </div>
+            </motion.div>
           </div>
         </>
       )}

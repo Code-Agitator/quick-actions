@@ -218,6 +218,27 @@ pub fn run() {
                 let _ = window.hide();
             }
 
+            // 【调试】临时硬编码快捷键，确保能呼出窗口
+            #[cfg(target_os = "windows")]
+            {
+                use tauri_plugin_global_shortcut::GlobalShortcutExt;
+                let _ = app.handle().plugin(tauri_plugin_global_shortcut::Builder::new().build());
+                
+                let main_window = app.get_webview_window("main").unwrap();
+                let _ = app.global_shortcut().on_shortcut("Ctrl+Space", move |_app, _shortcut, _event| {
+                    eprintln!("[Shortcut] Ctrl+Space pressed!");
+                    if let Ok(visible) = main_window.is_visible() {
+                        if visible {
+                            let _ = main_window.hide();
+                        } else {
+                            let _ = main_window.show();
+                            let _ = main_window.set_focus();
+                        }
+                    }
+                });
+                eprintln!("[Shortcut] Hardcoded Ctrl+Space registered for debugging");
+            }
+            
             // 【新特性】全局快捷键将在前端初始化时动态注册
             // 这里不再硬编码注册，允许用户自定义快捷键
             eprintln!("[Shortcut] Global shortcut will be registered dynamically from frontend settings");

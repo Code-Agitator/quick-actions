@@ -10,13 +10,17 @@ interface SearchResultListProps {
   onExecute: (result: SearchResult) => void;
   selectedIndex: number;
   onSelectIndex: (index: number) => void;
+  interactionSource?: 'keyboard' | 'mouse';
+  onInteractionChange?: (source: 'keyboard' | 'mouse') => void;
 }
 
 export function SearchResultList({ 
   results, 
   onExecute,
   selectedIndex,
-  onSelectIndex 
+  onSelectIndex,
+  interactionSource = 'keyboard',
+  onInteractionChange
 }: SearchResultListProps) {
   const { settings } = useAppSettings();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -27,22 +31,26 @@ export function SearchResultList({
   
   // 根据布局密度设置样式
   const isCompact = settings.layoutDensity === 'compact';
+  
+  // 统一使用紧凑样式
+  const itemGap = 'gap-2';
+  const itemPadding = 'py-1.5 px-3';
+  const iconSize = 'w-8 h-8';
+  const iconInnerSize = 'w-4 h-4';
 
-  // 滚动到选中项 - 使用标准的桌面应用行为
+  // 滚动到选中项 - 仅对键盘导航生效
   useEffect(() => {
-    if (selectedIndex >= 0 && containerRef.current) {
-      // ✅ 通过 data-index 属性查找选中项
+    // ✅ 只有键盘操作才触发跟随滚动，鼠标悬停不滚动
+    if (interactionSource === 'keyboard' && selectedIndex >= 0 && containerRef.current) {
       const selectedElement = containerRef.current.querySelector(`[data-index="${selectedIndex}"]`) as HTMLElement;
       if (selectedElement) {
-        // ✅ 使用 scrollIntoView with block: 'nearest'
-        // 这是桌面应用的标准行为：只在必要时滚动，保持最小位移
         selectedElement.scrollIntoView({ 
           block: 'nearest', 
           behavior: 'auto' 
         });
       }
     }
-  }, [selectedIndex]);
+  }, [selectedIndex, interactionSource]);
 
   // ✅ 当搜索结果变化时，重置鼠标选择状态
   // 防止新的搜索结果出现时，鼠标停留在某个选项上立即选中
@@ -55,12 +63,13 @@ export function SearchResultList({
     setAllowMouseSelect(true);
   }, []);
 
-  // ✅ 处理鼠标进入事件，只有在允许时才触发选择
+  // ✅ 处理鼠标进入事件，标记交互来源并触发选择
   const handleMouseEnter = useCallback((index: number) => {
     if (allowMouseSelect) {
+      onInteractionChange?.('mouse');
       onSelectIndex(index);
     }
-  }, [allowMouseSelect, onSelectIndex]);
+  }, [allowMouseSelect, onSelectIndex, onInteractionChange]);
 
   if (results.length === 0) {
     return (
@@ -88,7 +97,7 @@ export function SearchResultList({
   return (
     <div 
       ref={containerRef}
-      className="space-y-0.5 px-2"
+      className="space-y-0 px-1"
       onMouseMove={handleMouseMove}
     >
       <Listbox
@@ -134,9 +143,9 @@ export function SearchResultList({
                   : 'hover:bg-black/5 dark:hover:bg-white/[0.08]'
               }`}
             >
-              <div className={`flex items-center ${isCompact ? 'gap-2 py-1.5 px-3' : 'gap-3 py-2.5 px-3'}`}>
+              <div className={`flex items-center ${itemGap} ${itemPadding}`}>
                 {/* 图标 */}
-                <div className={`${isCompact ? 'w-8 h-8' : 'w-10 h-10'} flex-shrink-0 rounded-md bg-gradient-to-br from-gray-200/70 to-gray-300/50 dark:from-gray-700/70 dark:to-gray-800/50 backdrop-blur-sm border border-gray-300/50 dark:border-white/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_2px_4px_rgba(0,0,0,0.1)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_2px_4px_rgba(0,0,0,0.3)] overflow-hidden`}>
+                <div className={`${iconSize} flex-shrink-0 rounded-md bg-gradient-to-br from-gray-200/70 to-gray-300/50 dark:from-gray-700/70 dark:to-gray-800/50 backdrop-blur-sm border border-gray-300/50 dark:border-white/15 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_2px_4px_rgba(0,0,0,0.1)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_2px_4px_rgba(0,0,0,0.3)] overflow-hidden`}>
                   {hasRealIcon ? (
                     <img 
                       src={result.icon} 
@@ -145,7 +154,7 @@ export function SearchResultList({
                     />
                   ) : IconComponent ? (
                     <IconComponent 
-                      className={isCompact ? 'w-4 h-4' : 'w-5 h-5'} 
+                      className={iconInnerSize} 
                       style={{ color: iconColor }}
                     />
                   ) : (
