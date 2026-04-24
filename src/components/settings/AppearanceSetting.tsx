@@ -1,6 +1,7 @@
 import { Button, Divider, Select, SelectItem, Switch } from '@heroui/react'
 import { useTheme } from 'next-themes'
 import { useMemo, useState } from 'react'
+import { IoLanguageOutline } from 'react-icons/io5'
 
 import { useAppSettings } from '../../hooks/useAppSettings'
 import { Theme } from '../providers/ThemeProvider'
@@ -119,9 +120,17 @@ export default function AppearanceSetting() {
 
       {/* 主题设置 */}
       <section className="mb-8">
-        <div className="mb-4">
-          <p className="font-semibold text-medium mb-1">主题</p>
-          <p className="text-small text-default-500">选择应用的主题模式</p>
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-8 h-8 rounded-lg bg-default-200 dark:bg-default-300 flex items-center justify-center">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="text-default-600 dark:text-default-700">
+              <circle cx="12" cy="12" r="5" />
+              <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+            </svg>
+          </div>
+          <div>
+            <p className="font-semibold text-medium">主题</p>
+            <p className="text-small text-default-500">选择应用的主题模式</p>
+          </div>
         </div>
         <div className="flex items-center gap-4">
           <div className="flex flex-col items-center">
@@ -169,16 +178,20 @@ export default function AppearanceSetting() {
 
       {/* 语言设置 */}
       <section>
-        <div className="mb-4">
-          <p className="font-semibold text-medium mb-1">语言</p>
-          <p className="text-small text-default-500">选择应用的显示语言</p>
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-8 h-8 rounded-lg bg-default-200 dark:bg-default-300 flex items-center justify-center">
+            <IoLanguageOutline className="text-default-600 dark:text-default-700 text-lg" />
+          </div>
+          <div>
+            <p className="font-semibold text-medium">语言</p>
+            <p className="text-small text-default-500">选择应用的显示语言</p>
+          </div>
         </div>
-        <div className="flex items-center">
+        <div className="flex items-center gap-3 p-3 rounded-lg bg-default-100">
+          <IoLanguageOutline className="text-xl text-default-500" />
           <Select
-            className="w-48"
-            label="选择语言"
-            labelPlacement="outside"
-            classNames={{ label: 'hidden', base: '!mt-0' }}
+            className="flex-1"
+            classNames={{ base: '!mt-0' }}
             selectionMode="single"
             selectedKeys={currentLanguage}
             disallowEmptySelection

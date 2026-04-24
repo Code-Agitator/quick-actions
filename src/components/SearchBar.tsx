@@ -60,7 +60,7 @@ export const SearchBar = forwardRef<SearchBarRef, SearchBarProps>(
             ref={inputRef as any}
             autoFocus
             type="text"
-            placeholder={isQuickMode ? "快捷模式..." : "搜索插件和应用..."}
+            placeholder="Search  . . ."
             value={value}
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={(e) => {
