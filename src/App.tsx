@@ -485,9 +485,9 @@ function App() {
                     animate={{ width: 'auto', opacity: 1 }}
                     exit={{ width: 0, opacity: 0 }}
                     transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                    className="overflow-hidden flex-shrink-0"
+                    className="flex-shrink-0 overflow-visible"
                   >
-                    <div className="flex items-center gap-2 pl-2">
+                    <div className="flex items-center gap-2 pl-2 py-2">
                       <QuickButtons 
                         onExecute={(item) => {
                           // 执行快捷按钮逻辑

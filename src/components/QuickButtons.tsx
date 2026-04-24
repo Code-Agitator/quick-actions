@@ -54,17 +54,17 @@ export const QuickButtons = ({ onExecute }: QuickButtonsProps) => {
         return (
           <motion.button
             key={item.id}
-            whileHover={{ scale: 1.08, y: -2 }}
+            whileHover={{ scale: 1 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => onExecute(item)}
             className={`
               group w-10 h-10 rounded-full flex items-center justify-center
-              bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700/80 dark:to-gray-600/80
+              bg-gradient-to-br from-white/90 to-gray-100/90 dark:from-gray-800/80 dark:to-gray-700/80
               shadow-[2px_2px_8px_rgba(0,0,0,0.1),-2px_-2px_8px_rgba(255,255,255,0.15)]
-              dark:shadow-[2px_2px_8px_rgba(0,0,0,0.3),-2px_-2px_8px_rgba(255,255,255,0.05)]
+              dark:shadow-[2px_2px_8px_rgba(0,0,0,0.4),-2px_-2px_8px_rgba(255,255,255,0.05)]
               border border-gray-200/50 dark:border-gray-600/30
-              hover:shadow-[3px_3px_12px_rgba(0,0,0,0.15),-3px_-3px_12px_rgba(255,255,255,0.2)]
-              dark:hover:shadow-[3px_3px_12px_rgba(0,0,0,0.4),-3px_-3px_12px_rgba(255,255,255,0.08)]
+              hover:shadow-[0_0_15px_rgba(255,255,255,0.4),0_0_30px_rgba(255,255,255,0.1)]
+              dark:hover:shadow-[0_0_15px_rgba(255,255,255,0.15),0_0_30px_rgba(255,255,255,0.05)]
               hover:border-gray-300/70 dark:hover:border-gray-500/50
               transition-all duration-200 ease-out
             `}

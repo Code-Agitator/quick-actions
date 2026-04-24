@@ -1,6 +1,6 @@
 import { useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
-import { Input } from '@heroui/react';
-import { IoSettingsOutline, IoSearchOutline } from 'react-icons/io5';
+import { Input, Kbd } from '@heroui/react';
+import { IoSettingsOutline, IoSearchOutline, IoFlashOutline } from 'react-icons/io5';
 import { motion } from 'framer-motion';
 
 export interface SearchBarRef {
@@ -74,17 +74,23 @@ export const SearchBar = forwardRef<SearchBarRef, SearchBarProps>(
             }
             endContent={
               onOpenSettings && !isQuickMode ? (
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onOpenSettings();
-                  }}
-                  className="flex items-center justify-center p-1.5 hover:bg-black/5 dark:hover:bg-white/10 rounded-md transition-all duration-150 cursor-pointer"
-                >
-                  <IoSettingsOutline className="w-5 h-5 text-gray-500 dark:text-gray-400" />
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <span className="flex items-center gap-1 text-gray-400 dark:text-gray-500">
+                    <IoFlashOutline className="w-3.5 h-3.5" />
+                    <Kbd className="px-1.5 py-0.5 bg-black/5 dark:bg-white/[0.1] rounded text-[10px] font-medium border border-gray-300/50 dark:border-white/[0.1] backdrop-blur-sm text-gray-600 dark:text-gray-300/80">Alt</Kbd>
+                  </span>
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenSettings();
+                    }}
+                    className="flex items-center justify-center p-1.5 hover:bg-black/5 dark:hover:bg-white/10 rounded-md transition-all duration-150 cursor-pointer"
+                  >
+                    <IoSettingsOutline className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                  </button>
+                </div>
               ) : null
             }
           />
