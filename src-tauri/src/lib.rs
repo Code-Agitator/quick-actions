@@ -276,6 +276,7 @@ pub fn run() {
             commands::close_all_plugin_windows,
             commands::toggle_plugin_window_always_on_top,  // 【新特性】切换插件窗口置顶
             commands::set_main_window_size,
+            commands::set_main_window_size_animated,  // 【新特性】带动画的窗口大小调整
             commands::get_plugin_path,
             commands::reload_plugins,
             commands::read_plugin_file,
@@ -284,6 +285,7 @@ pub fn run() {
             commands::plugin_get_file_info,
             commands::emit_event,
             commands::get_start_menu_apps,
+            commands::get_app_icon_by_path,  // 【性能优化】按需加载单个应用图标
             commands::launch_application,
             commands::everything_search,
             // Everything 扩展命令

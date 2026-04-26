@@ -31,6 +31,8 @@ export class SearchCache {
    */
   rebuildIndex(plugins: any[], applications: ApplicationResult[]) {
     const endTimer = debugTimer('searchTiming', 'Rebuild index');
+    console.log('[SearchCache] Rebuilding index with', plugins.length, 'plugins and', applications.length, 'applications');
+    
     this.index.clear();
     this.searchCache.clear();
 
@@ -55,6 +57,7 @@ export class SearchCache {
     });
 
     endTimer();
+    console.log('[SearchCache] Index rebuilt with', this.index.size, 'total items');
     debugLog('cacheStats', `Indexed ${this.index.size} items, cache cleared`);
   }
 
@@ -84,9 +87,9 @@ export class SearchCache {
    */
   search(query: string): SearchResult[] {
     if (!query || !query.trim()) {
-      // 空查询，返回所有插件
-      debugLog('searchTiming', 'Empty query, returning all plugins');
-      return this.getAllPlugins();
+      // 空查询，返回所有结果（插件 + 应用）
+      debugLog('searchTiming', 'Empty query, returning all indexed items');
+      return this.getAllIndexedItems();
     }
 
     // 检查缓存
@@ -364,7 +367,27 @@ export class SearchCache {
   }
 
   /**
-   * 获取所有插件（默认显示）
+   * 获取所有索引项（默认显示）
+   */
+  private getAllIndexedItems(): SearchResult[] {
+    const items: Array<{ result: SearchResult; pinned?: boolean }> = [];
+
+    for (const item of this.index.values()) {
+      items.push({ result: item.result, pinned: item.pinned });
+    }
+
+    // 固定的项目排在前面
+    items.sort((a, b) => {
+      if (a.pinned && !b.pinned) return -1;
+      if (!a.pinned && b.pinned) return 1;
+      return 0;
+    });
+
+    return items.map(r => r.result);
+  }
+
+  /**
+   * 获取所有插件（默认显示）- 已弃用，使用 getAllIndexedItems
    */
   private getAllPlugins(): SearchResult[] {
     const plugins: Array<{ result: SearchResult; pinned?: boolean }> = [];

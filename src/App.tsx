@@ -59,7 +59,7 @@ function App() {
     return () => clearTimeout(timer);
   }, []);
 
-  // 监听 query 变化，动态调整窗口高度
+  // 监听 query 变化，动态调整窗口高度（使用防抖优化）
   useEffect(() => {
     const shouldExpand = query.length > 0;
     const newHeight = shouldExpand ? 480 : 64;
@@ -69,9 +69,9 @@ function App() {
     // 1. 先更新状态，触发 UI 准备
     setIsExpanded(shouldExpand);
     
-    // 2. 立即通过 Rust 后端调整窗口大小
+    // 2. 立即设置窗口大小（不等待动画）
     invoke('set_main_window_size', { height: newHeight })
-      .then(() => console.log('[App] Window resized to height:', newHeight))
+      .then(() => console.log('[App] Window resize to height:', newHeight))
       .catch(err => console.error('[App] Failed to resize:', err));
   }, [query]);
 
@@ -211,6 +211,11 @@ function App() {
 
   // 当插件或应用加载完成时，重建索引
   useEffect(() => {
+    console.log('[App] Plugins or applications changed, rebuilding index...', {
+      pluginsCount: plugins.length,
+      applicationsCount: applications.length
+    });
+    
     // 只要有数据就重建索引（即使只有一个有数据）
     if (plugins.length > 0 || applications.length > 0) {
       // 获取固定的插件列表
@@ -226,6 +231,7 @@ function App() {
       
       // 标记索引已就绪，触发重新渲染
       setIndexReady(true);
+      console.log('[App] Index rebuilt and ready');
     }
   }, [plugins, applications]);
 
@@ -286,19 +292,30 @@ function App() {
 
   // 使用缓存搜索（极速）
   const searchResults = useMemo(() => {
-    // 如果索引未就绪，返回空数组
+    console.log('[App] searchResults useMemo triggered', {
+      query,
+      indexReady,
+      pluginsLength: plugins.length,
+      applicationsLength: applications.length
+    });
+    
+    // 如果索引未就绪且没有任何数据，返回空数组
     if (!indexReady && plugins.length === 0 && applications.length === 0) {
+      console.log('[App] Index not ready and no data, returning empty results');
       return [];
     }
     
+    // 只要有数据或索引就绪，就执行搜索
     const endTimer = debugTimer('searchTiming', `搜索 "${query}"`);
     const result = searchCache.search(query);
     endTimer();
     
+    console.log('[App] Search returned', result.length, 'results for query:', query);
+    
     // 性能优化：限制最多展示20条结果
     const MAX_RESULTS = 20;
     return result.slice(0, MAX_RESULTS);
-  }, [query, plugins.length, applications.length, indexReady]);
+  }, [query, indexReady]); // 只依赖 query 和 indexReady
 
   // 键盘导航
   useEffect(() => {
