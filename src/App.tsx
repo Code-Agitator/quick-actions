@@ -14,8 +14,12 @@ import { searchCache } from "./utils/searchCache";
 import { useDebug } from "./context/DebugContext";
 import { initDebug, debugTimer } from "./utils/debugLogger";
 import { userBehaviorTracker } from "./utils/userBehavior";
+import { WINDOW_SIZES } from "./constants";
 
 function App() {
+  // 【性能监控】记录前端启动时间
+  const appStartRef = useRef<DOMHighResTimeStamp>(performance.now());
+  
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [interactionSource, setInteractionSource] = useState<'keyboard' | 'mouse'>('keyboard');
@@ -24,68 +28,124 @@ function App() {
   const [isExpanded, setIsExpanded] = useState(false); // 窗口是否展开
   const [isQuickMode, setIsQuickMode] = useState(false); // 快捷模式（缩短搜索框）
   const searchBarRef = useRef<SearchBarRef>(null);
+  const resizeTimerRef = useRef<number | null>(null); // 窗口调整防抖定时器
+  const lastResizeHeightRef = useRef<number>(WINDOW_SIZES.COLLAPSED_HEIGHT); // 记录上次窗口高度
+  const lastQueryChangeTimeRef = useRef<number>(0); // 记录上次查询变化时间
+  
+  console.log(`[Frontend] App component initialized at ${(performance.now() - appStartRef.current).toFixed(2)}ms`);
+  
   const { plugins } = usePlugins();
-  const { applications, reload: reloadApplications } = useApplications();
+  const { applications, reload: reloadApplications, loadVisibleIcons } = useApplications();
   const { getPinnedPlugins, togglePluginPin } = useAppSettings();
+  
+  console.log(`[Frontend] Hooks initialized at ${(performance.now() - appStartRef.current).toFixed(2)}ms`);
+  
   // 确保主题在应用启动时初始化（useAppSettings 的 useEffect 会自动应用主题）
   useAppSettings();
   const { settings: debugSettings } = useDebug();
 
+  // 【性能监控】应用挂载完成
+  useEffect(() => {
+    const mountTime = performance.now() - appStartRef.current;
+    console.log(`[Frontend] ========================================`);
+    console.log(`[Frontend] App mounted successfully in ${mountTime.toFixed(2)}ms`);
+    console.log(`[Frontend] ========================================`);
+  }, []);
+
   // 同步 debug 设置到 debugLogger
   useEffect(() => {
+    const debugStart = performance.now();
     initDebug(debugSettings);
+    console.log(`[Frontend] Debug initialized in ${(performance.now() - debugStart).toFixed(2)}ms`);
   }, [debugSettings]);
 
   // 【新特性】应用启动时注册全局快捷键
   useEffect(() => {
+    const registerStart = performance.now();
     const registerShortcut = async () => {
       try {
         const settingsStr = localStorage.getItem('quick-actions-settings');
         if (settingsStr) {
           const settings = JSON.parse(settingsStr);
           const shortcut = settings.globalShortcut || 'Ctrl+Space';
-          console.log('[App] Registering global shortcut:', shortcut);
+          console.log(`[Frontend] [${(performance.now() - registerStart).toFixed(2)}ms] Registering global shortcut:`, shortcut);
           
           await invoke('update_global_shortcut', { shortcut });
-          console.log('[App] ✓ Global shortcut registered successfully');
+          console.log(`[Frontend] [${(performance.now() - registerStart).toFixed(2)}ms] ✓ Global shortcut registered`);
         }
       } catch (error) {
-        console.error('[App] Failed to register global shortcut:', error);
+        console.error(`[Frontend] [${(performance.now() - registerStart).toFixed(2)}ms] ✗ Failed to register global shortcut:`, error);
       }
     };
     
     // 延迟执行，确保后端已就绪
-    const timer = setTimeout(registerShortcut, 500);
+    const timer = setTimeout(() => {
+      console.log(`[Frontend] [${(performance.now() - registerStart).toFixed(2)}ms] Starting shortcut registration...`);
+      registerShortcut();
+    }, 500);
     return () => clearTimeout(timer);
   }, []);
 
-  // 监听 query 变化，动态调整窗口高度（使用防抖优化）
+  // 监听 query 变化，动态调整窗口高度（立即响应版）
   useEffect(() => {
     const shouldExpand = query.length > 0;
-    const newHeight = shouldExpand ? 480 : 64;
+    const newHeight = shouldExpand ? WINDOW_SIZES.EXPANDED_HEIGHT : WINDOW_SIZES.COLLAPSED_HEIGHT;
     
-    console.log('[App] Query changed:', JSON.stringify(query), '-> expanding:', shouldExpand, 'newHeight:', newHeight);
+    // 如果目标高度与上次相同，跳过调整
+    if (newHeight === lastResizeHeightRef.current) {
+      return;
+    }
     
-    // 1. 先更新状态，触发 UI 准备
+    const now = performance.now();
+    const timeSinceLastChange = now - lastQueryChangeTimeRef.current;
+    const isRapidInput = timeSinceLastChange < 100; // 100ms 内视为快速输入
+    
+    console.log('[App] Query changed:', JSON.stringify(query), '-> expanding:', shouldExpand, 'newHeight:', newHeight, 'rapid:', isRapidInput);
+    
+    // 清除之前的防抖定时器
+    if (resizeTimerRef.current) {
+      clearTimeout(resizeTimerRef.current);
+      resizeTimerRef.current = null;
+    }
+    
+    // 1. 立即更新状态，触发 UI 准备（无延迟）
     setIsExpanded(shouldExpand);
     
-    // 2. 立即设置窗口大小（不等待动画）
-    invoke('set_main_window_size', { height: newHeight })
-      .then(() => console.log('[App] Window resize to height:', newHeight))
-      .catch(err => console.error('[App] Failed to resize:', err));
+    // 2. 使用极短防抖：8ms（几乎立即响应）
+    // Rust 端会立即调整窗口高度，无动画
+    const delay = 8;
+    
+    resizeTimerRef.current = window.setTimeout(() => {
+      lastResizeHeightRef.current = newHeight;
+      invoke('set_main_window_size', { height: newHeight })
+        .then(() => console.log('[App] Window resized immediately to:', newHeight))
+        .catch(err => console.error('[App] Failed to resize:', err));
+      resizeTimerRef.current = null;
+    }, delay);
+    
+    // 更新最后变化时间
+    lastQueryChangeTimeRef.current = now;
+    
+    // 清理函数
+    return () => {
+      if (resizeTimerRef.current) {
+        clearTimeout(resizeTimerRef.current);
+        resizeTimerRef.current = null;
+      }
+    };
   }, [query]);
 
   // 监听 showSettings 变化，重置窗口大小
   useEffect(() => {
     if (!showSettings) {
       // 回到搜索页时，根据 query 状态设置窗口高度
-      const newHeight = query.length > 0 ? 480 : 64;
+      const newHeight = query.length > 0 ? WINDOW_SIZES.EXPANDED_HEIGHT : WINDOW_SIZES.COLLAPSED_HEIGHT;
       invoke('set_main_window_size', { height: newHeight })
         .then(() => console.log('[App] Settings closed, window resized to:', newHeight))
         .catch(err => console.error('[App] Failed to resize after settings close:', err));
     } else {
       // 进入设置页时，设置为固定高度
-      invoke('set_main_window_size', { height: 600 })
+      invoke('set_main_window_size', { height: WINDOW_SIZES.SETTINGS_HEIGHT })
         .then(() => console.log('[App] Settings opened, window resized to 600'))
         .catch(err => console.error('[App] Failed to resize for settings:', err));
     }
@@ -317,6 +377,20 @@ function App() {
     return result.slice(0, MAX_RESULTS);
   }, [query, indexReady]); // 只依赖 query 和 indexReady
 
+  // 【图标加载】当搜索结果变化时，加载可见应用的图标
+  useEffect(() => {
+    if (searchResults.length > 0 && loadVisibleIcons) {
+      // 提取搜索结果中的应用
+      const visibleApps = searchResults
+        .filter(result => result.type === 'application')
+        .slice(0, 10); // 只加载前 10 个应用的图标
+      
+      if (visibleApps.length > 0) {
+        loadVisibleIcons(visibleApps);
+      }
+    }
+  }, [searchResults, loadVisibleIcons]);
+
   // 键盘导航
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -404,7 +478,7 @@ function App() {
       }
     };
 
-    const handleKeyUp = (e: KeyboardEvent) => {
+    const handleKeyUp = (_e: KeyboardEvent) => {
       // 移除自动退出逻辑，改为完全由 Alt 键切换控制
       // if (!e.altKey) {
       //   setIsQuickMode(false);
@@ -480,11 +554,11 @@ function App() {
           onTogglePin={togglePluginPin}
         />
       ) : (
-        // 主界面 - Spotlight 风格
+        // 主界面 - 全透明背景 + CSS 动画展开
         <>
-          {/* 外层容器 - iOS 毛玻璃质感，确保背景一致 */}
+          {/* 外层容器 - 全透明背景 */}
           <div 
-            className="flex-1 flex flex-col overflow-hidden ios-frosted h-full"
+            className="flex-1 flex flex-col overflow-hidden h-full bg-transparent"
           >
             {/* 搜索栏 - 与 Spotlight 一致的极简设计 */}
             <div className="flex-shrink-0 flex items-center w-full px-4" style={{ height: '64px' }}>
@@ -522,27 +596,22 @@ function App() {
             </div>
 
             {/* 分隔线 - 仅在展开时显示 */}
-            <div 
-              className={`mx-4 h-[1px] bg-gray-200 dark:bg-white/5 transition-all duration-200 ease-out ${
-                isExpanded ? 'opacity-100 my-2' : 'opacity-0 my-0'
-              }`}
+            <motion.div 
+              className="mx-4 h-[1px] bg-gray-200 dark:bg-white/5"
+              animate={{
+                opacity: isExpanded ? 1 : 0,
+              }}
+              transition={{
+                duration: 0.15,
+                ease: "easeOut",
+                opacity: { delay: isExpanded ? 0.05 : 0 }
+              }}
             />
 
-            {/* 内容区域 - 使用 flex 实现流畅的展开/收缩动画 */}
-            <motion.div 
-              layout
-              initial={false}
-              animate={{ 
-                opacity: isExpanded ? 1 : 0,
-                height: isExpanded ? 'auto' : 0
-              }}
-              transition={{ 
-                duration: 0.25, 
-                ease: [0.22, 1, 0.36, 1],
-                opacity: { delay: isExpanded ? 0.1 : 0 } // 展开时延迟显示内容，收起时立即消失
-              }}
-              className={`flex flex-col overflow-hidden ${
-                isExpanded ? 'flex-1 min-h-0' : 'flex-none'
+            {/* 内容区域 - 使用 CSS max-height 动画展开搜索结果 */}
+            <div 
+              className={`flex flex-col overflow-hidden transition-all duration-200 ease-out ${
+                isExpanded ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'
               }`}
             >
               <div className="flex-1 overflow-y-auto scrollbar-thin py-1 min-h-0">
@@ -556,7 +625,7 @@ function App() {
                   onInteractionChange={setInteractionSource}
                 />
               </div>
-            </motion.div>
+            </div>
           </div>
         </>
       )}

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
 import { Input, Kbd } from '@heroui/react';
 import { IoSettingsOutline, IoSearchOutline, IoFlashOutline } from 'react-icons/io5';
-import { motion } from 'framer-motion';
 
 export interface SearchBarRef {
   focus: () => void;
@@ -51,11 +50,7 @@ export const SearchBar = forwardRef<SearchBarRef, SearchBarProps>(
     return (
       <>
         {/* 搜索框 - 使用 HeroUI v2 Input */}
-        <motion.div
-          layout
-          transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-          className="relative flex items-center flex-1 min-w-0"
-        >
+        <div className="relative flex items-center flex-1 min-w-0">
           <Input
             ref={inputRef as any}
             autoFocus
@@ -94,7 +89,7 @@ export const SearchBar = forwardRef<SearchBarRef, SearchBarProps>(
               ) : null
             }
           />
-        </motion.div>
+        </div>
       </>
     );
   }

@@ -3,7 +3,6 @@ import { Listbox, ListboxItem, Chip, Kbd } from '@heroui/react';
 import { IoSearchOutline } from 'react-icons/io5';
 import { SearchResult } from '../types/searchResult';
 import { getAppIconConfig } from '../utils/appIcons';
-import { useAppSettings } from '../hooks/useAppSettings';
 
 interface SearchResultListProps {
   results: SearchResult[];
@@ -22,15 +21,11 @@ export function SearchResultList({
   interactionSource = 'keyboard',
   onInteractionChange
 }: SearchResultListProps) {
-  const { settings } = useAppSettings();
   const containerRef = useRef<HTMLDivElement>(null);
   
   // ✅ 跟踪是否允许鼠标悬停选择
   // 初始为 false，防止窗口打开时鼠标停留在某个选项上立即选中
   const [allowMouseSelect, setAllowMouseSelect] = useState(false);
-  
-  // 根据布局密度设置样式
-  const isCompact = settings.layoutDensity === 'compact';
   
   // 统一使用紧凑样式
   const itemGap = 'gap-2';

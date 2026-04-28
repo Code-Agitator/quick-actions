@@ -4,6 +4,10 @@ use std::path::PathBuf;
 use tauri::{State, WebviewWindow, Emitter, Manager, Size, LogicalSize, Position, LogicalPosition};
 use std::collections::VecDeque;
 use pinyin::ToPinyin;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+// 全局动画状态标志（防止多个动画线程并发执行）
+static WINDOW_RESIZE_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 
 pub struct AppState {
     pub plugin_manager: Mutex<PluginManager>,
@@ -799,7 +803,7 @@ pub fn toggle_window(window: WebviewWindow, app: tauri::AppHandle) -> Result<(),
     }
 }
 
-/// 设置主窗口大小（带平滑过渡）
+/// 设置主窗口大小（立即响应版：无动画，由前端 CSS 控制展开效果）
 #[tauri::command]
 pub fn set_main_window_size(height: u32, window: WebviewWindow) -> Result<(), String> {
     eprintln!("[Window Manager] === SET WINDOW SIZE REQUEST ===");
@@ -826,47 +830,21 @@ pub fn set_main_window_size(height: u32, window: WebviewWindow) -> Result<(), St
         return Ok(());
     }
     
-    // 【优化】使用少量帧数实现平滑过渡（100ms，6 帧）
-    // 这样可以在不阻塞用户输入的情况下提供视觉反馈
-    let frame_count = 6u32;
-    let height_diff = height as i32 - current_height as i32;
-    let step = height_diff as f64 / frame_count as f64;
+    // 【关键改动】立即设置窗口高度，不使用任何动画
+    // 动画完全由前端 CSS 控制，确保前后端同步
+    eprintln!("[Window Manager] Setting window height immediately to {}px", height);
     
-    eprintln!("[Window Manager] Animating: {} frames, step: {:.2}px/frame", frame_count, step);
-    
-    // 克隆窗口引用用于异步线程
-    let window_clone = window.clone();
-    
-    // 启动异步线程执行动画（不会阻塞主线程）
-    std::thread::spawn(move || {
-        for i in 1..=frame_count {
-            let eased_h = current_height as f64 + (step * i as f64);
-            
-            let new_size = Size::Logical(LogicalSize { 
-                width: 780.0, 
-                height: eased_h 
-            });
-            
-            if let Err(e) = window_clone.set_size(new_size) {
-                eprintln!("[Window Manager] Frame {} failed: {}", i, e);
-                break;
-            }
-            
-            // 每帧等待约 16ms（60fps）
-            std::thread::sleep(std::time::Duration::from_millis(16));
-        }
-        
-        // 确保最终高度准确
-        let final_size = Size::Logical(LogicalSize { 
-            width: 780.0, 
-            height: height as f64 
-        });
-        let _ = window_clone.set_size(final_size);
-        
-        eprintln!("[Window Manager] ✓ Animation completed");
+    let final_size = Size::Logical(LogicalSize { 
+        width: 780.0, 
+        height: height as f64 
     });
     
-    // 立即返回，不阻塞前端
+    window.set_size(final_size).map_err(|e| {
+        eprintln!("[Window Manager] Failed to set window size: {}", e);
+        e.to_string()
+    })?;
+    
+    eprintln!("[Window Manager] ✓ Window size set immediately");
     Ok(())
 }
 

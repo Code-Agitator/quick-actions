@@ -43,26 +43,25 @@ import {
 } from 'react-icons/si';
 
 import {
-  // 通用图标
-  Globe,
-  Terminal,
-  FileText,
-  Image as ImageIcon,
-  Music,
-  Video,
-  Gamepad2,
-  Settings,
-  FolderOpen,
-  Search,
-  Calculator,
-  Mail,
-  MessageSquare,
-  Smartphone,
-  Code,
-  Layout,
-  Package,
-  Layers,
-} from 'lucide-react';
+  // 通用图标 - 使用 Ionicons v5
+  IoGlobeOutline,
+  IoTerminalOutline,
+  IoDocumentTextOutline,
+  IoImageOutline,
+  IoMusicalNotesOutline,
+  IoVideocamOutline,
+  IoGameControllerOutline,
+  IoSettingsOutline,
+  IoFolderOpenOutline,
+  IoSearchOutline,
+  IoCalculatorOutline,
+  IoMailOutline,
+  IoChatbubbleOutline,
+  IoCodeSlashOutline,
+  IoLayersOutline,
+  IoCubeOutline,
+  IoAppsOutline,
+} from 'react-icons/io5';
 
 /**
  * 应用图标映射配置
@@ -80,16 +79,16 @@ export const APP_ICON_MAP: AppIconConfig[] = [
   // 浏览器
   { keywords: ['chrome', '谷歌浏览器'], icon: SiGooglechrome, color: '#4285F4' },
   { keywords: ['firefox', '火狐'], icon: SiFirefoxbrowser, color: '#FF7139' },
-  { keywords: ['edge', 'microsoft edge'], icon: Globe, color: '#0078D7' },
+  { keywords: ['edge', 'microsoft edge'], icon: IoGlobeOutline, color: '#0078D7' },
   { keywords: ['brave'], icon: SiBrave, color: '#FB542B' },
   { keywords: ['safari'], icon: SiSafari, color: '#006CFF' },
   
   // 开发工具
-  { keywords: ['code', 'vscode', 'visual studio'], icon: Code, color: '#007ACC' },
-  { keywords: ['intellij', 'idea', 'jetbrains'], icon: Code, color: '#FFFFFF' },
+  { keywords: ['code', 'vscode', 'visual studio'], icon: IoCodeSlashOutline, color: '#007ACC' },
+  { keywords: ['intellij', 'idea', 'jetbrains'], icon: IoCodeSlashOutline, color: '#FFFFFF' },
   { keywords: ['webstorm'], icon: SiWebstorm, color: '#00C6FF' },
   { keywords: ['sublime'], icon: SiSublimetext, color: '#FF9800' },
-  { keywords: ['notepad'], icon: FileText, color: '#4CAF50' },
+  { keywords: ['notepad'], icon: IoDocumentTextOutline, color: '#4CAF50' },
   { keywords: ['git'], icon: SiGit, color: '#F05032' },
   { keywords: ['github'], icon: SiGithub, color: '#181717' },
   { keywords: ['gitlab'], icon: SiGitlab, color: '#FC6D26' },
@@ -103,15 +102,15 @@ export const APP_ICON_MAP: AppIconConfig[] = [
   { keywords: ['angular'], icon: SiAngular, color: '#DD0031' },
   
   // Office
-  { keywords: ['word'], icon: FileText, color: '#2B579A' },
-  { keywords: ['excel'], icon: Layout, color: '#217346' },
-  { keywords: ['powerpoint', 'ppt'], icon: Layers, color: '#D24726' },
-  { keywords: ['outlook', 'mail', '邮件'], icon: Mail, color: '#0078D4' },
-  { keywords: ['office'], icon: Package, color: '#D83B01' },
+  { keywords: ['word'], icon: IoDocumentTextOutline, color: '#2B579A' },
+  { keywords: ['excel'], icon: IoAppsOutline, color: '#217346' },
+  { keywords: ['powerpoint', 'ppt'], icon: IoLayersOutline, color: '#D24726' },
+  { keywords: ['outlook', 'mail', '邮件'], icon: IoMailOutline, color: '#0078D4' },
+  { keywords: ['office'], icon: IoCubeOutline, color: '#D83B01' },
   
   // 通讯
   { keywords: ['wechat', '微信'], icon: SiWechat, color: '#07C160' },
-  { keywords: ['qq'], icon: MessageSquare, color: '#12B7F5' },
+  { keywords: ['qq'], icon: IoChatbubbleOutline, color: '#12B7F5' },
   { keywords: ['telegram'], icon: SiTelegram, color: '#26A5E4' },
   { keywords: ['slack'], icon: SiSlack, color: '#4A154B' },
   { keywords: ['discord'], icon: SiDiscord, color: '#5865F2' },
@@ -119,38 +118,46 @@ export const APP_ICON_MAP: AppIconConfig[] = [
   // 媒体播放器
   { keywords: ['vlc'], icon: SiVlcmediaplayer, color: '#FF8800' },
   { keywords: ['spotify'], icon: SiSpotify, color: '#1DB954' },
-  { keywords: ['网易云音乐', 'netease'], icon: Music, color: '#C20C0C' },
-  { keywords: ['qq音乐'], icon: Music, color: '#31C27C' },
+  { keywords: ['网易云音乐', 'netease'], icon: IoMusicalNotesOutline, color: '#C20C0C' },
+  { keywords: ['qq音乐'], icon: IoMusicalNotesOutline, color: '#31C27C' },
   { keywords: ['youtube'], icon: SiYoutube, color: '#FF0000' },
   { keywords: ['bilibili', 'b站'], icon: SiBilibili, color: '#FB7299' },
-  { keywords: ['music', '音乐', '音频'], icon: Music, color: '#9C27B0' },
-  { keywords: ['video', '视频', '电影'], icon: Video, color: '#F44336' },
+  { keywords: ['music', '音乐', '音频'], icon: IoMusicalNotesOutline, color: '#9C27B0' },
+  { keywords: ['video', '视频', '电影'], icon: IoVideocamOutline, color: '#F44336' },
   
   // 设计工具
-  { keywords: ['photoshop', 'ps'], icon: ImageIcon, color: '#31A8FF' },
-  { keywords: ['illustrator', 'ai'], icon: ImageIcon, color: '#FF9A00' },
+  { keywords: ['photoshop', 'ps'], icon: IoImageOutline, color: '#31A8FF' },
+  { keywords: ['illustrator', 'ai'], icon: IoImageOutline, color: '#FF9A00' },
   { keywords: ['figma'], icon: SiFigma, color: '#F24E1E' },
   { keywords: ['sketch'], icon: SiSketch, color: '#F7B500' },
   
   // 游戏平台
   { keywords: ['steam'], icon: SiSteam, color: '#1B2838' },
   { keywords: ['epic'], icon: SiEpicgames, color: '#313131' },
-  { keywords: ['game', '游戏'], icon: Gamepad2, color: '#4CAF50' },
+  { keywords: ['game', '游戏'], icon: IoGameControllerOutline, color: '#4CAF50' },
   
   // 系统工具
-  { keywords: ['calculator', '计算器'], icon: Calculator, color: '#666666' },
-  { keywords: ['terminal', 'cmd', 'powershell', '命令行', '终端'], icon: Terminal, color: '#000000' },
-  { keywords: ['settings', '设置', '控制面板'], icon: Settings, color: '#666666' },
-  { keywords: ['file', '文件', 'explorer', '资源管理器'], icon: FolderOpen, color: '#FFB300' },
-  { keywords: ['search', '搜索'], icon: Search, color: '#4285F4' },
-  { keywords: ['image', 'photo', 'picture', '图片', '照片'], icon: ImageIcon, color: '#4285F4' },
+  { keywords: ['calculator', '计算器'], icon: IoCalculatorOutline, color: '#666666' },
+  { keywords: ['terminal', 'cmd', 'powershell', '命令行', '终端'], icon: IoTerminalOutline, color: '#000000' },
+  { keywords: ['settings', '设置', '控制面板'], icon: IoSettingsOutline, color: '#666666' },
+  { keywords: ['file', '文件', 'explorer', '资源管理器'], icon: IoFolderOpenOutline, color: '#FFB300' },
+  { keywords: ['search', '搜索'], icon: IoSearchOutline, color: '#4285F4' },
+  { keywords: ['image', 'photo', 'picture', '图片', '照片'], icon: IoImageOutline, color: '#4285F4' },
+  
+  // Windows 系统应用
+  { keywords: ['event viewer', '事件查看器'], icon: IoDocumentTextOutline, color: '#0078D4' },
+  { keywords: ['everything'], icon: IoSearchOutline, color: '#00AAFF' },
+  { keywords: ['visual studio'], icon: IoCodeSlashOutline, color: '#5C2D91' },
+  { keywords: ['command prompt', '命令提示符'], icon: IoTerminalOutline, color: '#0C0C0C' },
+  { keywords: ['windows sdk', 'sdk'], icon: IoCubeOutline, color: '#0078D4' },
+  { keywords: ['macro recorder', '宏录制'], icon: IoVideocamOutline, color: '#6B7280' },
 ];
 
 /**
- * 默认图标
+ * 默认图标 - 使用通用的应用程序图标
  */
-export const DEFAULT_APP_ICON = Smartphone;
-export const DEFAULT_APP_ICON_COLOR = '#666666';
+export const DEFAULT_APP_ICON = IoAppsOutline;
+export const DEFAULT_APP_ICON_COLOR = '#6B7280';
 
 /**
  * 根据应用名称获取图标配置

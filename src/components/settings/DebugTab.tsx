@@ -1,6 +1,8 @@
-import { Button, Card, Switch } from '@heroui/react';
+import { Button, Switch } from '@heroui/react';
 import { userBehaviorTracker } from '../../utils/userBehavior';
 import { searchCache } from '../../utils/searchCache';
+import { SettingsCard } from '../common/SettingsCard';
+import { LOCAL_STORAGE_KEYS } from '../../constants';
 
 interface DebugTabProps {
   debugSettings: import('../../context/DebugContext').DebugSettings;
@@ -17,10 +19,10 @@ function exportUserBehaviorSummary() {
   const cacheStats = searchCache.getStats();
   
   // 获取 localStorage 中的原始数据
-  const searchHistory = JSON.parse(localStorage.getItem('quick-actions-search-history') || '[]');
-  const userPreferences = JSON.parse(localStorage.getItem('quick-actions-user-preferences') || '[]');
-  const appSettings = JSON.parse(localStorage.getItem('quick-actions-settings') || '{}');
-  const pinnedPlugins = JSON.parse(localStorage.getItem('quick-actions-plugin-pinned') || '[]');
+  const searchHistory = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEYS.SEARCH_HISTORY) || '[]');
+  const userPreferences = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEYS.USER_PREFERENCES) || '[]');
+  const appSettings = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEYS.SETTINGS) || '{}');
+  const pinnedPlugins = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEYS.PLUGIN_PINNED) || '[]');
 
   console.log('\n%c━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'color: #8b5cf6; font-weight: bold');
   console.log('%c📊 Quick Actions 使用习惯概要', 'color: #8b5cf6; font-size: 16px; font-weight: bold');
@@ -161,7 +163,7 @@ export function DebugTab({ debugSettings, onToggleDebug, isDebugOpen, onTogglePa
       </div>
 
       {/* Debug Panel Toggle */}
-      <Card className="bg-content2 dark:bg-content2/50 border border-divider rounded-medium p-4">
+      <SettingsCard className="p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-md bg-purple-500/20 flex items-center justify-center">
@@ -183,10 +185,10 @@ export function DebugTab({ debugSettings, onToggleDebug, isDebugOpen, onTogglePa
             {isDebugOpen ? '已开启' : '开启'}
           </Button>
         </div>
-      </Card>
+      </SettingsCard>
 
       {/* Debug Options */}
-      <Card className="bg-content2 dark:bg-content2/50 border border-divider rounded-medium">
+      <SettingsCard>
         <div className="px-4 py-3 border-b border-divider">
           <h3 className="text-xs font-semibold text-default-500 uppercase tracking-wide">调试选项</h3>
         </div>
@@ -207,20 +209,20 @@ export function DebugTab({ debugSettings, onToggleDebug, isDebugOpen, onTogglePa
             </div>
           ))}
         </div>
-      </Card>
+      </SettingsCard>
 
       {/* Stats */}
-      <Card className="bg-content2 dark:bg-content2/50 border border-divider rounded-medium px-4 py-3">
+      <SettingsCard className="px-4 py-3">
         <div className="flex items-center justify-between">
           <span className="text-sm text-default-500">已启用调试选项</span>
           <span className="text-sm font-medium text-purple-400">
             {debugSettings ? Object.values(debugSettings).filter(Boolean).length : 0} / {debugOptions.length}
           </span>
         </div>
-      </Card>
+      </SettingsCard>
 
       {/* 用户行为统计导出 */}
-      <Card className="bg-content2 dark:bg-content2/50 border border-divider rounded-medium">
+      <SettingsCard>
         <div className="px-4 py-3 border-b border-divider">
           <h3 className="text-xs font-semibold text-default-500 uppercase tracking-wide">数据导出</h3>
         </div>
@@ -237,7 +239,7 @@ export function DebugTab({ debugSettings, onToggleDebug, isDebugOpen, onTogglePa
             在浏览器控制台中查看详细的使用统计和分析
           </p>
         </div>
-      </Card>
+      </SettingsCard>
     </div>
   );
 }

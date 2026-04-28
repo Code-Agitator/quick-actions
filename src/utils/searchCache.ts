@@ -386,27 +386,6 @@ export class SearchCache {
     return items.map(r => r.result);
   }
 
-  /**
-   * 获取所有插件（默认显示）- 已弃用，使用 getAllIndexedItems
-   */
-  private getAllPlugins(): SearchResult[] {
-    const plugins: Array<{ result: SearchResult; pinned?: boolean }> = [];
-
-    for (const item of this.index.values()) {
-      if (item.result.type === 'plugin') {
-        plugins.push({ result: item.result, pinned: item.pinned });
-      }
-    }
-
-    // 固定的插件排在前面
-    plugins.sort((a, b) => {
-      if (a.pinned && !b.pinned) return -1;
-      if (!a.pinned && b.pinned) return 1;
-      return 0;
-    });
-
-    return plugins.map(p => p.result);
-  }
 
   /**
    * 缓存搜索结果

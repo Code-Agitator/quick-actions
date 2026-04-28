@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { Button, Divider, Chip, Tooltip, Card } from '@heroui/react';
+import { Button, Divider, Chip, Tooltip } from '@heroui/react';
 import { IoTrashOutline, IoPinOutline, IoPin } from 'react-icons/io5';
 import { useAppSettings } from '../../hooks/useAppSettings';
+import { SettingsCard } from '../common/SettingsCard';
 
 interface Plugin {
   id: string;
@@ -18,15 +19,6 @@ interface PluginsTabProps {
   loading: boolean;
   onUninstall: (id: string) => void;
   onTogglePin?: (id: string, pinned: boolean) => void;
-}
-
-// 可复用的设置卡片组件
-function SettingsCard({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return (
-    <Card className={`bg-content2 dark:bg-content2/50 border border-divider rounded-medium ${className}`}>
-      {children}
-    </Card>
-  );
 }
 
 export function PluginsTab({ plugins, loading, onUninstall, onTogglePin }: PluginsTabProps) {

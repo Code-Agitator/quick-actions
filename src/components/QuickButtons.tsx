@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { IoTimeOutline, IoFolderOpenOutline, IoSettingsOutline, IoTerminalOutline, IoDocumentTextOutline } from 'react-icons/io5';
+import { IoTimeOutline, IoSettingsOutline, IoTerminalOutline, IoDocumentTextOutline } from 'react-icons/io5';
 
 interface QuickItem {
   id: string;

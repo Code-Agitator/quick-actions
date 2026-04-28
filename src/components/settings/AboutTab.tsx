@@ -1,17 +1,9 @@
-import { Button, Divider, Card } from '@heroui/react';
+import { Button, Divider } from '@heroui/react';
 import { IoSettingsOutline, IoPowerOutline } from 'react-icons/io5';
+import { SettingsCard } from '../common/SettingsCard';
 
 interface AboutTabProps {
   onReset?: () => void;
-}
-
-// 可复用的设置卡片组件
-function SettingsCard({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return (
-    <Card className={`bg-content2 dark:bg-content2/50 border border-divider rounded-medium ${className}`}>
-      {children}
-    </Card>
-  );
 }
 
 export function AboutTab({ onReset }: AboutTabProps) {
