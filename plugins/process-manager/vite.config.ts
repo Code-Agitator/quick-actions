@@ -22,10 +22,6 @@ export default defineConfig({
       output: {
         inlineDynamicImports: true
       }
-    },
-    // Watch 模式配置
-    watch: {
-      exclude: 'node_modules/**'
     }
   }
 });

@@ -31,6 +31,7 @@ function App() {
   const resizeTimerRef = useRef<number | null>(null); // 窗口调整防抖定时器
   const lastResizeHeightRef = useRef<number>(WINDOW_SIZES.COLLAPSED_HEIGHT); // 记录上次窗口高度
   const lastQueryChangeTimeRef = useRef<number>(0); // 记录上次查询变化时间
+  const isExecutingRef = useRef<boolean>(false); // ✅ 防止重复执行标志
   
   console.log(`[Frontend] App component initialized at ${(performance.now() - appStartRef.current).toFixed(2)}ms`);
   
@@ -504,12 +505,20 @@ function App() {
   const handleExecute = async (result: SearchResult) => {
     console.log('[Main Window] Executing result:', result);
 
-    // ✅ 记录用户选择行为
-    userBehaviorTracker.recordSelection(query, result.id, result.type as 'plugin' | 'app');
+    // ✅ 防止重复执行：检查是否正在执行中
+    if (isExecutingRef.current) {
+      console.log('[Main Window] Execution already in progress, ignoring duplicate call');
+      return;
+    }
 
-    if (result.type === 'plugin') {
-      // 执行插件
-      try {
+    isExecutingRef.current = true;
+
+    try {
+      // ✅ 记录用户选择行为
+      userBehaviorTracker.recordSelection(query, result.id, result.type as 'plugin' | 'app');
+
+      if (result.type === 'plugin') {
+        // 执行插件
         console.log('[Main Window] Opening plugin:', result.pluginId);
         
         // 查找插件元数据以获取正确的入口文件
@@ -523,18 +532,19 @@ function App() {
           entry: entryFile,
         });
         await invoke('hide_window');
-      } catch (error) {
-        console.error('[Main Window] Error opening plugin:', error);
-      }
-    } else if (result.type === 'application') {
-      // 启动应用程序
-      try {
+      } else if (result.type === 'application') {
+        // 启动应用程序
         console.log('[Main Window] Launching application:', result.executable);
         await invoke('launch_application', { path: result.path });
         await invoke('hide_window');
-      } catch (error) {
-        console.error('[Main Window] Error launching application:', error);
       }
+    } catch (error) {
+      console.error('[Main Window] Error executing result:', error);
+    } finally {
+      // ✅ 延迟重置标志，防止快速连续点击
+      setTimeout(() => {
+        isExecutingRef.current = false;
+      }, 500);
     }
   };
 
