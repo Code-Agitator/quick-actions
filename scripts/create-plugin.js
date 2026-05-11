@@ -40,7 +40,8 @@ const packageJson = {
   scripts: {
     dev: 'vite',
     build: 'vite build',
-    preview: 'vite preview'
+    preview: 'vite preview',
+    pack: 'node ./scripts/pack-plugin.js'
   },
   dependencies: {
     react: '^19.0.0',
@@ -50,6 +51,7 @@ const packageJson = {
     '@types/react': '^19.0.0',
     '@types/react-dom': '^19.0.0',
     '@vitejs/plugin-react': '^4.3.0',
+    archiver: '^8.0.0',
     typescript: '^5.7.0',
     vite: '^6.0.0'
   }
@@ -329,14 +331,23 @@ fs.writeFileSync(
   JSON.stringify(pluginJson, null, 2) + '\n'
 );
 
-// 创建 .gitignore
+// Create .gitignore
 const gitignore = `node_modules/
 dist/
+*.zip
 *.log
 .DS_Store
 `;
 
 fs.writeFileSync(path.join(pluginDir, '.gitignore'), gitignore);
+
+// Create scripts directory and copy pack script
+console.log('📦 Creating standalone pack script...');
+const scriptsDir = path.join(pluginDir, 'scripts');
+fs.mkdirSync(scriptsDir, { recursive: true });
+const templatePath = path.join(__dirname, 'templates', 'pack-plugin-standalone.js');
+const destPath = path.join(scriptsDir, 'pack-plugin.js');
+fs.copyFileSync(templatePath, destPath);
 
 // 创建 README.md
 console.log('📖 Creating README.md...');
@@ -367,6 +378,16 @@ The plugin environment provides a secure \`api\` object with the following capab
 - \`writeText(text: string)\`: Copy text to clipboard.
 - \`readText()\`: Read text from clipboard.
 
+## 📦 Packaging
+
+To distribute your plugin, pack it into a ZIP file:
+
+\`\`\`bash
+pnpm pack
+\`\`\`
+
+This will create \`{plugin-id}-{version}.zip\` in the plugin root directory.
+
 ## 📝 Usage Example
 
 \`\`\`typescript
@@ -385,4 +406,5 @@ console.log('\n🚀 Next steps:');
 console.log(`   1. cd plugins/${pluginName}`);
 console.log('   2. pnpm install');
 console.log('   3. pnpm dev          # Start development server');
-console.log('   4. pnpm build        # Build for production\n');
+console.log('   4. pnpm build        # Build for production');
+console.log('   5. pnpm pack         # Pack plugin into ZIP file\n');

@@ -1,0 +1,30 @@
+{
+  "module_id": "plugin-independent-packaging",
+  "status": "PLANNING_COMPLETED",
+  "complexity_level": "L2",
+  "last_updated": "2026-05-09T10:00:00Z",
+  "summary": "规划已完成，等待Implementation-Agent实现。方案A（改进版）：每个插件复制独立打包脚本并安装archiver依赖，实现完全独立的打包能力。",
+  "estimated_code_lines": 500,
+  "files_to_create": [
+    "scripts/templates/pack-plugin-standalone.js",
+    "plugins/*/scripts/pack-plugin.js (6个文件)"
+  ],
+  "files_to_modify": [
+    "plugins/*/package.json (6个文件)",
+    "scripts/create-plugin.js",
+    "scripts/pack-plugin.js (标记废弃)"
+  ],
+  "key_features": [
+    "完全独立打包能力",
+    "向后兼容旧脚本",
+    "ZIP格式保持不变",
+    "符合项目约定"
+  ],
+  "next_steps": [
+    "Implementation-Agent读取plugin-independent-packaging.md开始实现",
+    "创建独立打包脚本模板",
+    "批量应用到6个现有插件",
+    "更新create-plugin.js模板",
+    "进行全面测试验证"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "id": "qa-test-plugin",
+  "name": "Qa Test Plugin",
+  "version": "1.0.0",
+  "description": "A standalone React plugin - qa-test-plugin",
+  "author": "Your Name",
+  "entry": "dist/index.js",
+  "icon": "🔌",
+  "keywords": [
+    "qa-test-plugin",
+    "react",
+    "plugin"
+  ]
+}

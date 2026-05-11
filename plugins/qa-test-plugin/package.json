@@ -1,8 +1,8 @@
 {
-  "name": "@quick-actions/plugin-uuid-generator",
+  "name": "@quick-actions/plugin-qa-test-plugin",
   "version": "1.0.0",
   "type": "module",
-  "description": "A Quick Actions plugin - uuid-generator",
+  "description": "A Quick Actions plugin - qa-test-plugin",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

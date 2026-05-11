@@ -357,23 +357,28 @@ await ACTIONS.notification.show('Debug', 'Reached checkpoint 1');
 # 确保构建了最新版本
 pnpm build
 
-# 检查 dist 目录
-ls dist/
-# 应该包含: index.js (或 index.mjs)
+# 使用 pnpm pack 生成 ZIP 包
+pnpm pack
+```
+
+This will create `{plugin-id}-{version}.zip` in the plugin root directory.
+
+**示例输出**:
+```
+📦 File: uuid-generator-1.0.0.zip
+📊 Size: 0.07 MB
 ```
 
 #### 分享插件
 
-1. **压缩插件目录**
-   ```bash
-   cd plugins
-   zip -r my-plugin.zip my-plugin/
-   ```
+1. **插件已自动打包**
+   
+   The `pnpm pack` command creates a ZIP file named `{plugin-id}-{version}.zip` in the plugin root directory.
 
 2. **上传到插件市场** (未来功能)
 
 3. **手动安装**
-   - 用户解压到 `%APPDATA%/quick-actions/plugins/`
+   - 用户将 ZIP 文件解压到 `%APPDATA%/quick-actions/plugins/`
    - 重启应用
 
 ---

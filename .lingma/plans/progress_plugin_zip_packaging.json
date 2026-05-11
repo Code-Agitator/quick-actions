@@ -1,0 +1,64 @@
+{
+  "module_id": "plugin-zip-packaging",
+  "status": "PLANNING_COMPLETED",
+  "complexity_level": "L2",
+  "created_at": "2026-05-09T10:00:00Z",
+  "last_updated": "2026-05-09T10:00:00Z",
+  "planning_agent": "Planning-Agent",
+  "estimated_hours": 4.0,
+  "estimated_lines_of_code": 400,
+  "summary": "插件 ZIP 打包功能规划已完成，包含核心打包脚本、模板更新和验收标准",
+  "deliverables": [
+    {
+      "file": "scripts/pack-plugin.js",
+      "type": "new",
+      "description": "核心打包脚本，使用 archiver 创建 ZIP 文件",
+      "estimated_lines": 150
+    },
+    {
+      "file": "scripts/create-plugin.js",
+      "type": "modify",
+      "description": "更新模板，为新插件添加 pack 命令和 .gitignore 规则",
+      "estimated_lines": 20
+    },
+    {
+      "file": "plugins/*/package.json",
+      "type": "modify",
+      "count": 5,
+      "description": "为现有插件添加 pack 脚本",
+      "estimated_lines": 5
+    }
+  ],
+  "reusable_resources": [
+    {
+      "resource": "archiver",
+      "version": "8.0.0",
+      "location": "node_modules/archiver",
+      "usage": "ZIP 文件创建，已在根目录 package.json 中声明"
+    },
+    {
+      "resource": "插件结构模板",
+      "location": "scripts/create-plugin.js",
+      "usage": "了解插件目录结构和配置文件格式"
+    }
+  ],
+  "acceptance_criteria_count": 47,
+  "risk_assessment": {
+    "technical_risks": 2,
+    "compatibility_risks": 2,
+    "user_experience_risks": 2,
+    "maintenance_risks": 1
+  },
+  "next_steps": [
+    "Implementation-Agent 读取 .lingma/plans/plugin-zip-packaging.md 开始实现",
+    "优先实现 scripts/pack-plugin.js 核心脚本",
+    "然后更新 scripts/create-plugin.js 模板",
+    "最后更新现有插件的 package.json",
+    "完成所有验收测试"
+  ],
+  "related_documents": [
+    ".lingma/plans/plugin-zip-packaging.md",
+    ".lingma/plans/acceptance_criteria_plugin_zip_packaging.md",
+    ".lingma/conventions/user-conventions.md"
+  ]
+}
