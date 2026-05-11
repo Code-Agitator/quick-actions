@@ -1,6 +1,7 @@
 import { Button, Divider } from '@heroui/react';
 import { IoSettingsOutline, IoPowerOutline } from 'react-icons/io5';
 import { SettingsCard } from '../common/SettingsCard';
+import { confirmAction, showSuccess } from '../../utils/notifications';
 
 interface AboutTabProps {
   onReset?: () => void;
@@ -57,9 +58,11 @@ export function AboutTab({ onReset }: AboutTabProps) {
 
         {/* Reset Settings Button */}
         <Button
-          onPress={() => {
-            if (window.confirm('确定要重置所有设置为默认值吗？')) {
-              onReset?.();
+          onPress={async () => {
+            const confirmed = await confirmAction('确定要重置所有设置为默认值吗？')
+            if (confirmed) {
+              onReset?.()
+              showSuccess('设置已重置为默认值')
             }
           }}
           variant="flat"

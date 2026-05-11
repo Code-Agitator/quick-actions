@@ -273,3 +273,14 @@ html:not(.dark) .ios-frosted-card {
   box-shadow: none !important;
   ring: 0 !important;
 }
+
+/* 减少动画模式 - 当用户禁用动画时应用 */
+/* 通过 useAppSettings 的 applyAnimations 函数控制，向 <html> 元素添加 reduce-motion 类 */
+.reduce-motion *,
+.reduce-motion *::before,
+.reduce-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}

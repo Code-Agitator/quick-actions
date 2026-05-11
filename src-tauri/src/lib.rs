@@ -3,6 +3,8 @@ mod plugin_manager;
 mod plugin_api;
 mod everything_ext;
 mod process_manager;
+mod plugin_installer;
+mod plugin_registry;
 
 use commands::AppState;
 use plugin_manager::PluginManager;
@@ -367,6 +369,14 @@ pub fn run() {
             process_manager::process_get_stats,
             process_manager::process_get_open_files,
             process_manager::process_get_listening_ports,
+            // 插件动态加载命令（模块1）
+            plugin_installer::install_plugin_from_zip,
+            plugin_installer::uninstall_plugin_zip,
+            plugin_installer::list_installed_plugins,
+            // 插件元数据管理命令（模块2）
+            plugin_registry::get_registered_plugins,
+            plugin_registry::toggle_plugin,
+            plugin_registry::get_plugin_details,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

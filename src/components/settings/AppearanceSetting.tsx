@@ -1,9 +1,10 @@
-import { Button, Divider, Select, SelectItem, Switch } from '@heroui/react'
+import { Button, Divider, Select, SelectItem, Slider, Switch } from '@heroui/react'
 import { useTheme } from 'next-themes'
-import { useMemo, useState } from 'react'
-import { IoLanguageOutline } from 'react-icons/io5'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { IoEyeOutline, IoGridOutline, IoLanguageOutline, IoPlayCircleOutline } from 'react-icons/io5'
 
 import { useAppSettings } from '../../hooks/useAppSettings'
+import { debounce } from '../../utils/debounce'
 import { Theme } from '../providers/ThemeProvider'
 
 // 语言配置
@@ -66,9 +67,9 @@ export default function AppearanceSetting() {
   const [mounted, setMounted] = useState(false)
 
   // 等待组件挂载，避免 hydration 不匹配
-  useState(() => {
+  useEffect(() => {
     setMounted(true)
-  })
+  }, [])
 
   const switchTheme = (newTheme: Theme) => {
     // 关闭跟随系统
@@ -95,7 +96,8 @@ export default function AppearanceSetting() {
         updateSetting('language', 'zh-CN')
       }
       return new Set([currentLang])
-    } catch (_) {
+    } catch (error) {
+      console.error('[AppearanceSetting] Failed to get current language:', error);
       return new Set([languages[0].value])
     }
   }, [settings.language])
@@ -103,6 +105,14 @@ export default function AppearanceSetting() {
   const changeLanguage = async (language: string) => {
     updateSetting('language', language as 'zh-CN' | 'en-US')
   }
+
+  // 防抖的透明度更新函数（300ms）
+  const debouncedUpdateOpacity = useCallback(
+    debounce((value: number) => {
+      updateSetting('windowOpacity', value)
+    }, 300),
+    [updateSetting]
+  )
 
   if (!mounted) {
     return null
@@ -177,7 +187,7 @@ export default function AppearanceSetting() {
       <Divider className="mb-6" />
 
       {/* 语言设置 */}
-      <section>
+      <section className="mb-8">
         <div className="flex items-center gap-2 mb-4">
           <div className="w-8 h-8 rounded-lg bg-default-200 dark:bg-default-300 flex items-center justify-center">
             <IoLanguageOutline className="text-default-600 dark:text-default-700 text-lg" />
@@ -205,6 +215,105 @@ export default function AppearanceSetting() {
           >
             {(language) => <SelectItem key={language.value}>{language.label}</SelectItem>}
           </Select>
+        </div>
+      </section>
+
+      <Divider className="mb-6" />
+
+      {/* 动画效果设置 */}
+      <section className="mb-8">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-8 h-8 rounded-lg bg-default-200 dark:bg-default-300 flex items-center justify-center">
+            <IoPlayCircleOutline className="text-default-600 dark:text-default-700 text-lg" />
+          </div>
+          <div>
+            <p className="font-semibold text-medium">动画效果</p>
+            <p className="text-small text-default-500">控制界面过渡动画</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 p-3 rounded-lg bg-default-100">
+          <Switch
+            aria-label="启用动画"
+            size="sm"
+            color="primary"
+            isSelected={settings.enableAnimations}
+            onValueChange={(v) => updateSetting('enableAnimations', v)}
+          />
+          <div className="flex-1">
+            <p className="text-small text-default-600">启用交互动画</p>
+            <p className="text-tiny text-default-500 mt-0.5">禁用后可减少运动眩晕</p>
+          </div>
+        </div>
+      </section>
+
+      <Divider className="mb-6" />
+
+      {/* 布局密度设置 */}
+      <section className="mb-8">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-8 h-8 rounded-lg bg-default-200 dark:bg-default-300 flex items-center justify-center">
+            <IoGridOutline className="text-default-600 dark:text-default-700 text-lg" />
+          </div>
+          <div>
+            <p className="font-semibold text-medium">布局密度</p>
+            <p className="text-small text-default-500">调整界面元素间距</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 p-3 rounded-lg bg-default-100">
+          <Select
+            label="选择布局密度"
+            selectedKeys={[settings.layoutDensity]}
+            onSelectionChange={(keys) => {
+              const key = Array.from(keys)[0] as 'compact' | 'comfortable'
+              if (key) {
+                updateSetting('layoutDensity', key)
+              }
+            }}
+          >
+            <SelectItem key="compact">紧凑</SelectItem>
+            <SelectItem key="comfortable">宽松</SelectItem>
+          </Select>
+        </div>
+      </section>
+
+      <Divider className="mb-6" />
+
+      {/* 窗口透明度设置 */}
+      <section>
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-8 h-8 rounded-lg bg-default-200 dark:bg-default-300 flex items-center justify-center">
+            <IoEyeOutline className="text-default-600 dark:text-default-700 text-lg" />
+          </div>
+          <div>
+            <p className="font-semibold text-medium">窗口透明度</p>
+            <p className="text-small text-default-500">调整主窗口不透明度</p>
+          </div>
+        </div>
+        <div className="p-3 rounded-lg bg-default-100">
+          <div className="flex items-center gap-3 mb-2">
+            <span className="text-tiny text-default-500 w-12">50%</span>
+            <Slider
+              aria-label="窗口透明度"
+              size="sm"
+              color="primary"
+              minValue={0.5}
+              maxValue={1.0}
+              step={0.01}
+              value={settings.windowOpacity}
+              onChange={(value) => {
+                if (Array.isArray(value)) {
+                  debouncedUpdateOpacity(value[0])
+                } else {
+                  debouncedUpdateOpacity(value)
+                }
+              }}
+              formatOptions={{ style: 'percent' }}
+            />
+            <span className="text-tiny text-default-500 w-12 text-right">100%</span>
+          </div>
+          <p className="text-tiny text-default-500 text-center">
+            当前: {(settings.windowOpacity * 100).toFixed(0)}%
+          </p>
         </div>
       </section>
     </div>

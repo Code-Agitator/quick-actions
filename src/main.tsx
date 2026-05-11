@@ -4,6 +4,7 @@ import App from "./App";
 import { PluginApp } from "./PluginApp";
 import { DebugProvider } from "./context/DebugContext";
 import ThemeProvider from "./components/providers/ThemeProvider";
+import { NotificationProvider } from "./components/providers/NotificationProvider";
 import { HeroUIProvider } from "@heroui/react";
 import "./index.css";
 
@@ -37,7 +38,9 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <DebugProvider>
       <HeroUIProvider>
         <ThemeProvider>
-          {isPluginWindow ? <PluginApp /> : <App />}
+          <NotificationProvider>
+            {isPluginWindow ? <PluginApp /> : <App />}
+          </NotificationProvider>
         </ThemeProvider>
       </HeroUIProvider>
     </DebugProvider>
